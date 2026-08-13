@@ -110,3 +110,26 @@ button {
 button:hover {
   background: #374151;
 }
+
+.field-error {
+  color: #b42318;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.submission-result {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.submission-result h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.submission-result p {
+  margin: 4px 0;
+}
