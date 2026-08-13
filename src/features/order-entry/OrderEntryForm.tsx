@@ -5,15 +5,25 @@ import type {
   OrderEntryData,
   OrderEntryErrors,
   OrderEntryFormValues,
+  OrderItemFormValues,
 } from './orderEntry.types';
 
 import { validateOrderEntry } from './orderEntry.validation';
 
+function createEmptyOrderItem(): OrderItemFormValues {
+  return {
+    supplierAlias: '',
+    description: '',
+    size: '',
+    color: '',
+    quantity: '1',
+  };
+}
+
 const initialOrderEntry: OrderEntryFormValues = {
   customerReference: '',
   channel: '',
-  itemDescription: '',
-  quantity: '1',
+  items: [createEmptyOrderItem()],
 };
 
 export function OrderEntryForm() {
@@ -39,6 +49,49 @@ export function OrderEntryForm() {
 
     setErrors({});
     setSubmittedOrder(result.data);
+  }
+
+  function updateOrderItem(
+    index: number,
+    field: keyof OrderItemFormValues,
+    value: string,
+  ) {
+    setOrderEntry((currentOrderEntry) => ({
+      ...currentOrderEntry,
+      items: currentOrderEntry.items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item,
+      ),
+    }));
+  }
+
+  function addOrderItem() {
+    setOrderEntry((currentOrderEntry) => ({
+      ...currentOrderEntry,
+      items: [
+        ...currentOrderEntry.items,
+        createEmptyOrderItem(),
+      ],
+    }));
+  }
+
+  function removeOrderItem(index: number) {
+    setOrderEntry((currentOrderEntry) => {
+      if (currentOrderEntry.items.length === 1) {
+        return currentOrderEntry;
+      }
+
+      return {
+        ...currentOrderEntry,
+        items: currentOrderEntry.items.filter(
+          (_, itemIndex) => itemIndex !== index,
+        ),
+      };
+    });
   }
 
   return (
@@ -75,10 +128,10 @@ export function OrderEntryForm() {
                 : undefined
             }
             onChange={(event) =>
-              setOrderEntry({
-                ...orderEntry,
+              setOrderEntry((currentOrderEntry) => ({
+                ...currentOrderEntry,
                 customerReference: event.target.value,
-              })
+              }))
             }
           />
 
@@ -106,10 +159,10 @@ export function OrderEntryForm() {
               errors.channel ? 'channel-error' : undefined
             }
             onChange={(event) =>
-              setOrderEntry({
-                ...orderEntry,
+              setOrderEntry((currentOrderEntry) => ({
+                ...currentOrderEntry,
                 channel: event.target.value as OrderChannel | '',
-              })
+              }))
             }
           >
             <option value="">Select a channel</option>
@@ -127,73 +180,225 @@ export function OrderEntryForm() {
           )}
         </div>
 
-        <div className="form-field">
-          <label htmlFor="itemDescription">
-            Item
-          </label>
+        <fieldset>
+          <legend>Order items</legend>
 
-          <input
-            id="itemDescription"
-            type="text"
-            name="itemDescription"
-            value={orderEntry.itemDescription}
-            aria-invalid={Boolean(errors.itemDescription)}
-            aria-describedby={
-              errors.itemDescription
-                ? 'itemDescription-error'
-                : undefined
-            }
-            onChange={(event) =>
-              setOrderEntry({
-                ...orderEntry,
-                itemDescription: event.target.value,
-              })
-            }
-          />
-
-          {errors.itemDescription && (
+          {errors.itemsMessage && (
             <span
-              id="itemDescription-error"
+              id="items-error"
               className="field-error"
             >
-              {errors.itemDescription}
+              {errors.itemsMessage}
             </span>
           )}
-        </div>
 
-        <div className="form-field">
-          <label htmlFor="quantity">
-            Quantity
-          </label>
+          {orderEntry.items.map((item, index) => {
+            const itemErrors = errors.items?.[index] ?? {};
+            const fieldPrefix = `item-${index}`;
 
-          <input
-            id="quantity"
-            type="number"
-            name="quantity"
-            min="1"
-            step="1"
-            value={orderEntry.quantity}
-            aria-invalid={Boolean(errors.quantity)}
-            aria-describedby={
-              errors.quantity ? 'quantity-error' : undefined
-            }
-            onChange={(event) =>
-              setOrderEntry({
-                ...orderEntry,
-                quantity: event.target.value,
-              })
-            }
-          />
+            return (
+              <section
+                key={index}
+                className="order-item"
+              >
+                <h2>Item {index + 1}</h2>
 
-          {errors.quantity && (
-            <span
-              id="quantity-error"
-              className="field-error"
-            >
-              {errors.quantity}
-            </span>
-          )}
-        </div>
+                <div className="form-field">
+                  <label htmlFor={`${fieldPrefix}-supplierAlias`}>
+                    Supplier alias
+                  </label>
+
+                  <input
+                    id={`${fieldPrefix}-supplierAlias`}
+                    type="text"
+                    name={`items[${index}].supplierAlias`}
+                    value={item.supplierAlias}
+                    aria-invalid={Boolean(itemErrors.supplierAlias)}
+                    aria-describedby={
+                      itemErrors.supplierAlias
+                        ? `${fieldPrefix}-supplierAlias-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      updateOrderItem(
+                        index,
+                        'supplierAlias',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.supplierAlias && (
+                    <span
+                      id={`${fieldPrefix}-supplierAlias-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.supplierAlias}
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor={`${fieldPrefix}-description`}>
+                    Description
+                  </label>
+
+                  <input
+                    id={`${fieldPrefix}-description`}
+                    type="text"
+                    name={`items[${index}].description`}
+                    value={item.description}
+                    aria-invalid={Boolean(itemErrors.description)}
+                    aria-describedby={
+                      itemErrors.description
+                        ? `${fieldPrefix}-description-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      updateOrderItem(
+                        index,
+                        'description',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.description && (
+                    <span
+                      id={`${fieldPrefix}-description-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.description}
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor={`${fieldPrefix}-size`}>
+                    Size
+                  </label>
+
+                  <input
+                    id={`${fieldPrefix}-size`}
+                    type="text"
+                    name={`items[${index}].size`}
+                    value={item.size}
+                    aria-invalid={Boolean(itemErrors.size)}
+                    aria-describedby={
+                      itemErrors.size
+                        ? `${fieldPrefix}-size-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      updateOrderItem(
+                        index,
+                        'size',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.size && (
+                    <span
+                      id={`${fieldPrefix}-size-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.size}
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor={`${fieldPrefix}-color`}>
+                    Color
+                  </label>
+
+                  <input
+                    id={`${fieldPrefix}-color`}
+                    type="text"
+                    name={`items[${index}].color`}
+                    value={item.color}
+                    aria-invalid={Boolean(itemErrors.color)}
+                    aria-describedby={
+                      itemErrors.color
+                        ? `${fieldPrefix}-color-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      updateOrderItem(
+                        index,
+                        'color',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.color && (
+                    <span
+                      id={`${fieldPrefix}-color-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.color}
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor={`${fieldPrefix}-quantity`}>
+                    Quantity
+                  </label>
+
+                  <input
+                    id={`${fieldPrefix}-quantity`}
+                    type="number"
+                    name={`items[${index}].quantity`}
+                    min="1"
+                    step="1"
+                    value={item.quantity}
+                    aria-invalid={Boolean(itemErrors.quantity)}
+                    aria-describedby={
+                      itemErrors.quantity
+                        ? `${fieldPrefix}-quantity-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      updateOrderItem(
+                        index,
+                        'quantity',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.quantity && (
+                    <span
+                      id={`${fieldPrefix}-quantity-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.quantity}
+                    </span>
+                  )}
+                </div>
+
+                {orderEntry.items.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeOrderItem(index)}
+                  >
+                    Remove item
+                  </button>
+                )}
+              </section>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={addOrderItem}
+          >
+            Add item
+          </button>
+        </fieldset>
 
         <button type="submit">
           Create order
@@ -207,10 +412,14 @@ export function OrderEntryForm() {
         >
           <h2>Order ready</h2>
 
-          <p>
-            {submittedOrder.itemDescription} ×{' '}
-            {submittedOrder.quantity}
-          </p>
+          <ul>
+            {submittedOrder.items.map((item, index) => (
+              <li key={index}>
+                {item.supplierAlias} — {item.description},{' '}
+                {item.size}, {item.color} × {item.quantity}
+              </li>
+            ))}
+          </ul>
 
           <p>
             {submittedOrder.customerReference} via{' '}

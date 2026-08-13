@@ -6,8 +6,15 @@ import { validateOrderEntry } from './orderEntry.validation';
 const validOrderEntry: OrderEntryFormValues = {
   customerReference: '@selinboutique',
   channel: 'instagram',
-  itemDescription: 'Black linen dress, size 40',
-  quantity: '2',
+  items: [
+    {
+      supplierAlias: 'A',
+      description: 'Black linen dress',
+      size: '40',
+      color: 'Black',
+      quantity: '2',
+    },
+  ],
 };
 
 describe('validateOrderEntry', () => {
@@ -19,8 +26,15 @@ describe('validateOrderEntry', () => {
       data: {
         customerReference: '@selinboutique',
         channel: 'instagram',
-        itemDescription: 'Black linen dress, size 40',
-        quantity: 2,
+        items: [
+          {
+            supplierAlias: 'A',
+            description: 'Black linen dress',
+            size: '40',
+            color: 'Black',
+            quantity: 2,
+          },
+        ],
       },
     });
   });
@@ -28,7 +42,7 @@ describe('validateOrderEntry', () => {
   it('requires a customer reference', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      customerReference: '   ',
+      customerReference: ' ',
     });
 
     expect(result).toEqual({
@@ -53,16 +67,46 @@ describe('validateOrderEntry', () => {
     });
   });
 
-  it('requires an item description', () => {
+  it('requires at least one order item', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      itemDescription: '',
+      items: [],
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        itemDescription: 'Item description is required.',
+        itemsMessage: 'At least one order item is required.',
+      },
+    });
+  });
+
+  it('requires all order item fields', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      items: [
+        {
+          supplierAlias: '',
+          description: '',
+          size: '',
+          color: '',
+          quantity: '',
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        items: [
+          {
+            supplierAlias: 'Supplier alias is required.',
+            description: 'Item description is required.',
+            size: 'Size is required.',
+            color: 'Color is required.',
+            quantity: 'Quantity must be at least 1.',
+          },
+        ],
       },
     });
   });
@@ -70,13 +114,22 @@ describe('validateOrderEntry', () => {
   it('rejects a quantity below one', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      quantity: '0',
+      items: [
+        {
+          ...validOrderEntry.items[0],
+          quantity: '0',
+        },
+      ],
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        quantity: 'Quantity must be at least 1.',
+        items: [
+          {
+            quantity: 'Quantity must be at least 1.',
+          },
+        ],
       },
     });
   });
@@ -84,22 +137,46 @@ describe('validateOrderEntry', () => {
   it('rejects a non-integer quantity', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      quantity: '1.5',
+      items: [
+        {
+          ...validOrderEntry.items[0],
+          quantity: '1.5',
+        },
+      ],
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        quantity: 'Quantity must be at least 1.',
+        items: [
+          {
+            quantity: 'Quantity must be at least 1.',
+          },
+        ],
       },
     });
   });
 
-  it('trims user-entered text before accepting the order', () => {
+  it('accepts multiple order items and trims user-entered text', () => {
     const result = validateOrderEntry({
-      ...validOrderEntry,
-      customerReference: '  @selinboutique  ',
-      itemDescription: '  Black linen dress  ',
+      customerReference: ' @selinboutique ',
+      channel: 'instagram',
+      items: [
+        {
+          supplierAlias: ' A ',
+          description: ' Black linen dress ',
+          size: ' 40 ',
+          color: ' Black ',
+          quantity: '2',
+        },
+        {
+          supplierAlias: ' B ',
+          description: ' Cream scarf ',
+          size: ' One size ',
+          color: ' Cream ',
+          quantity: '1',
+        },
+      ],
     });
 
     expect(result).toEqual({
@@ -107,8 +184,47 @@ describe('validateOrderEntry', () => {
       data: {
         customerReference: '@selinboutique',
         channel: 'instagram',
-        itemDescription: 'Black linen dress',
-        quantity: 2,
+        items: [
+          {
+            supplierAlias: 'A',
+            description: 'Black linen dress',
+            size: '40',
+            color: 'Black',
+            quantity: 2,
+          },
+          {
+            supplierAlias: 'B',
+            description: 'Cream scarf',
+            size: 'One size',
+            color: 'Cream',
+            quantity: 1,
+          },
+        ],
+      },
+    });
+  });
+
+  it('keeps validation errors aligned with the order item index', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      items: [
+        validOrderEntry.items[0],
+        {
+          ...validOrderEntry.items[0],
+          description: '',
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        items: [
+          {},
+          {
+            description: 'Item description is required.',
+          },
+        ],
       },
     });
   });
