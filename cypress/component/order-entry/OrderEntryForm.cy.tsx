@@ -1,5 +1,13 @@
 import { OrderEntryForm } from '../../../src/features/order-entry/OrderEntryForm';
 
+function fillRequiredOrderDetails() {
+  cy.get('input[name="customerReference"]').type('@selinboutique');
+  cy.get('select[name="contactChannel"]').select('instagram');
+  cy.get('input[name="contactValue"]').type('@selinboutique');
+  cy.get('select[name="orderChannel"]').select('instagram');
+  cy.get('input[name="orderDate"]').type('2026-08-15');
+}
+
 describe('OrderEntryForm', () => {
   it('shows validation errors when required information is missing', () => {
     cy.mount(<OrderEntryForm />);
@@ -7,7 +15,11 @@ describe('OrderEntryForm', () => {
     cy.contains('button', 'Create order').click();
 
     cy.contains('Customer reference is required.').should('be.visible');
-    cy.contains('Channel is required.').should('be.visible');
+    cy.contains('Contact channel is required.').should('be.visible');
+    cy.contains('Contact value is required.').should('be.visible');
+    cy.contains('Order channel is required.').should('be.visible');
+    cy.contains('Order date is required.').should('be.visible');
+
     cy.contains('Supplier alias is required.').should('be.visible');
     cy.contains('Item description is required.').should('be.visible');
     cy.contains('Size is required.').should('be.visible');
@@ -19,8 +31,7 @@ describe('OrderEntryForm', () => {
   it('rejects an invalid order item quantity', () => {
     cy.mount(<OrderEntryForm />);
 
-    cy.get('input[name="customerReference"]').type('@selinboutique');
-    cy.get('select[name="channel"]').select('instagram');
+    fillRequiredOrderDetails();
 
     cy.get('input[name="items[0].supplierAlias"]').type('A');
     cy.get('input[name="items[0].description"]').type(
@@ -36,11 +47,10 @@ describe('OrderEntryForm', () => {
     cy.contains('Order ready').should('not.exist');
   });
 
-  it('accepts a valid order with one order item', () => {
+  it('accepts a valid order with customer and order details', () => {
     cy.mount(<OrderEntryForm />);
 
-    cy.get('input[name="customerReference"]').type('@selinboutique');
-    cy.get('select[name="channel"]').select('instagram');
+    fillRequiredOrderDetails();
 
     cy.get('input[name="items[0].supplierAlias"]').type('A');
     cy.get('input[name="items[0].description"]').type(
@@ -50,20 +60,30 @@ describe('OrderEntryForm', () => {
     cy.get('input[name="items[0].color"]').type('Black');
     cy.get('input[name="items[0].quantity"]').clear().type('2');
 
+    cy.get('textarea[name="operationalNote"]').type(
+      'Call before shipping',
+    );
+
     cy.contains('button', 'Create order').click();
 
     cy.contains('Order ready').should('be.visible');
+    cy.contains('Customer: @selinboutique').should('be.visible');
+    cy.contains(
+      'Contact: @selinboutique via instagram',
+    ).should('be.visible');
+    cy.contains('Order channel: instagram').should('be.visible');
+    cy.contains('Order date: 2026-08-15').should('be.visible');
+    cy.contains('Note: Call before shipping').should('be.visible');
+
     cy.contains(
       'A — Black linen dress, 40, Black × 2',
     ).should('be.visible');
-    cy.contains('@selinboutique via instagram').should('be.visible');
   });
 
   it('adds and submits multiple order items', () => {
     cy.mount(<OrderEntryForm />);
 
-    cy.get('input[name="customerReference"]').type('+49 170 1234567');
-    cy.get('select[name="channel"]').select('whatsapp');
+    fillRequiredOrderDetails();
 
     cy.get('input[name="items[0].supplierAlias"]').type('A');
     cy.get('input[name="items[0].description"]').type(
@@ -94,7 +114,7 @@ describe('OrderEntryForm', () => {
       'B — Cream scarf, One size, Cream × 1',
     ).should('be.visible');
 
-    cy.contains('+49 170 1234567 via whatsapp').should('be.visible');
+    cy.contains('Customer: @selinboutique').should('be.visible');
   });
 
   it('allows an added order item to be removed while keeping one item', () => {
@@ -118,5 +138,23 @@ describe('OrderEntryForm', () => {
     cy.contains('Item 2').should('not.exist');
     cy.contains('Item 1').should('be.visible');
     cy.contains('button', 'Remove item').should('not.exist');
+  });
+
+  it('allows the operational note to be omitted', () => {
+    cy.mount(<OrderEntryForm />);
+
+    fillRequiredOrderDetails();
+
+    cy.get('input[name="items[0].supplierAlias"]').type('A');
+    cy.get('input[name="items[0].description"]').type(
+      'Black linen dress',
+    );
+    cy.get('input[name="items[0].size"]').type('40');
+    cy.get('input[name="items[0].color"]').type('Black');
+
+    cy.contains('button', 'Create order').click();
+
+    cy.contains('Order ready').should('be.visible');
+    cy.contains(/^Note:/).should('not.exist');
   });
 });

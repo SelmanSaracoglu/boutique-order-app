@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react';
 
+import { CustomerContactFields } from './CustomerContactFields';
+import { OrderDetailsFields } from './OrderDetailsFields';
+import { OrderItemsSection } from './OrderItemsSection';
+
 import type {
-  OrderChannel,
   OrderEntryData,
   OrderEntryErrors,
   OrderEntryFormValues,
@@ -22,7 +25,11 @@ function createEmptyOrderItem(): OrderItemFormValues {
 
 const initialOrderEntry: OrderEntryFormValues = {
   customerReference: '',
-  channel: '',
+  contactChannel: '',
+  contactValue: '',
+  orderChannel: '',
+  orderDate: '',
+  operationalNote: '',
   items: [createEmptyOrderItem()],
 };
 
@@ -111,294 +118,64 @@ export function OrderEntryForm() {
         onSubmit={handleSubmit}
         noValidate
       >
-        <div className="form-field">
-          <label htmlFor="customerReference">
-            Customer reference
-          </label>
+        <CustomerContactFields
+          customerReference={orderEntry.customerReference}
+          contactChannel={orderEntry.contactChannel}
+          contactValue={orderEntry.contactValue}
+          errors={errors}
+          onCustomerReferenceChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              customerReference: value,
+            }))
+          }
+          onContactChannelChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              contactChannel: value,
+            }))
+          }
+          onContactValueChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              contactValue: value,
+            }))
+          }
+        />
 
-          <input
-            id="customerReference"
-            type="text"
-            name="customerReference"
-            value={orderEntry.customerReference}
-            aria-invalid={Boolean(errors.customerReference)}
-            aria-describedby={
-              errors.customerReference
-                ? 'customerReference-error'
-                : undefined
-            }
-            onChange={(event) =>
-              setOrderEntry((currentOrderEntry) => ({
-                ...currentOrderEntry,
-                customerReference: event.target.value,
-              }))
-            }
-          />
+        <OrderDetailsFields
+          orderChannel={orderEntry.orderChannel}
+          orderDate={orderEntry.orderDate}
+          operationalNote={orderEntry.operationalNote}
+          errors={errors}
+          onOrderChannelChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              orderChannel: value,
+            }))
+          }
+          onOrderDateChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              orderDate: value,
+            }))
+          }
+          onOperationalNoteChange={(value) =>
+            setOrderEntry((current) => ({
+              ...current,
+              operationalNote: value,
+            }))
+          }
+        />
 
-          {errors.customerReference && (
-            <span
-              id="customerReference-error"
-              className="field-error"
-            >
-              {errors.customerReference}
-            </span>
-          )}
-        </div>
-
-        <div className="form-field">
-          <label htmlFor="channel">
-            Channel
-          </label>
-
-          <select
-            id="channel"
-            name="channel"
-            value={orderEntry.channel}
-            aria-invalid={Boolean(errors.channel)}
-            aria-describedby={
-              errors.channel ? 'channel-error' : undefined
-            }
-            onChange={(event) =>
-              setOrderEntry((currentOrderEntry) => ({
-                ...currentOrderEntry,
-                channel: event.target.value as OrderChannel | '',
-              }))
-            }
-          >
-            <option value="">Select a channel</option>
-            <option value="instagram">Instagram</option>
-            <option value="whatsapp">WhatsApp</option>
-          </select>
-
-          {errors.channel && (
-            <span
-              id="channel-error"
-              className="field-error"
-            >
-              {errors.channel}
-            </span>
-          )}
-        </div>
-
-        <fieldset>
-          <legend>Order items</legend>
-
-          {errors.itemsMessage && (
-            <span
-              id="items-error"
-              className="field-error"
-            >
-              {errors.itemsMessage}
-            </span>
-          )}
-
-          {orderEntry.items.map((item, index) => {
-            const itemErrors = errors.items?.[index] ?? {};
-            const fieldPrefix = `item-${index}`;
-
-            return (
-              <section
-                key={index}
-                className="order-item"
-              >
-                <h2>Item {index + 1}</h2>
-
-                <div className="form-field">
-                  <label htmlFor={`${fieldPrefix}-supplierAlias`}>
-                    Supplier alias
-                  </label>
-
-                  <input
-                    id={`${fieldPrefix}-supplierAlias`}
-                    type="text"
-                    name={`items[${index}].supplierAlias`}
-                    value={item.supplierAlias}
-                    aria-invalid={Boolean(itemErrors.supplierAlias)}
-                    aria-describedby={
-                      itemErrors.supplierAlias
-                        ? `${fieldPrefix}-supplierAlias-error`
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      updateOrderItem(
-                        index,
-                        'supplierAlias',
-                        event.target.value,
-                      )
-                    }
-                  />
-
-                  {itemErrors.supplierAlias && (
-                    <span
-                      id={`${fieldPrefix}-supplierAlias-error`}
-                      className="field-error"
-                    >
-                      {itemErrors.supplierAlias}
-                    </span>
-                  )}
-                </div>
-
-                <div className="form-field">
-                  <label htmlFor={`${fieldPrefix}-description`}>
-                    Description
-                  </label>
-
-                  <input
-                    id={`${fieldPrefix}-description`}
-                    type="text"
-                    name={`items[${index}].description`}
-                    value={item.description}
-                    aria-invalid={Boolean(itemErrors.description)}
-                    aria-describedby={
-                      itemErrors.description
-                        ? `${fieldPrefix}-description-error`
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      updateOrderItem(
-                        index,
-                        'description',
-                        event.target.value,
-                      )
-                    }
-                  />
-
-                  {itemErrors.description && (
-                    <span
-                      id={`${fieldPrefix}-description-error`}
-                      className="field-error"
-                    >
-                      {itemErrors.description}
-                    </span>
-                  )}
-                </div>
-
-                <div className="form-field">
-                  <label htmlFor={`${fieldPrefix}-size`}>
-                    Size
-                  </label>
-
-                  <input
-                    id={`${fieldPrefix}-size`}
-                    type="text"
-                    name={`items[${index}].size`}
-                    value={item.size}
-                    aria-invalid={Boolean(itemErrors.size)}
-                    aria-describedby={
-                      itemErrors.size
-                        ? `${fieldPrefix}-size-error`
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      updateOrderItem(
-                        index,
-                        'size',
-                        event.target.value,
-                      )
-                    }
-                  />
-
-                  {itemErrors.size && (
-                    <span
-                      id={`${fieldPrefix}-size-error`}
-                      className="field-error"
-                    >
-                      {itemErrors.size}
-                    </span>
-                  )}
-                </div>
-
-                <div className="form-field">
-                  <label htmlFor={`${fieldPrefix}-color`}>
-                    Color
-                  </label>
-
-                  <input
-                    id={`${fieldPrefix}-color`}
-                    type="text"
-                    name={`items[${index}].color`}
-                    value={item.color}
-                    aria-invalid={Boolean(itemErrors.color)}
-                    aria-describedby={
-                      itemErrors.color
-                        ? `${fieldPrefix}-color-error`
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      updateOrderItem(
-                        index,
-                        'color',
-                        event.target.value,
-                      )
-                    }
-                  />
-
-                  {itemErrors.color && (
-                    <span
-                      id={`${fieldPrefix}-color-error`}
-                      className="field-error"
-                    >
-                      {itemErrors.color}
-                    </span>
-                  )}
-                </div>
-
-                <div className="form-field">
-                  <label htmlFor={`${fieldPrefix}-quantity`}>
-                    Quantity
-                  </label>
-
-                  <input
-                    id={`${fieldPrefix}-quantity`}
-                    type="number"
-                    name={`items[${index}].quantity`}
-                    min="1"
-                    step="1"
-                    value={item.quantity}
-                    aria-invalid={Boolean(itemErrors.quantity)}
-                    aria-describedby={
-                      itemErrors.quantity
-                        ? `${fieldPrefix}-quantity-error`
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      updateOrderItem(
-                        index,
-                        'quantity',
-                        event.target.value,
-                      )
-                    }
-                  />
-
-                  {itemErrors.quantity && (
-                    <span
-                      id={`${fieldPrefix}-quantity-error`}
-                      className="field-error"
-                    >
-                      {itemErrors.quantity}
-                    </span>
-                  )}
-                </div>
-
-                {orderEntry.items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeOrderItem(index)}
-                  >
-                    Remove item
-                  </button>
-                )}
-              </section>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={addOrderItem}
-          >
-            Add item
-          </button>
-        </fieldset>
+        <OrderItemsSection
+          items={orderEntry.items}
+          errors={errors.items}
+          itemsMessage={errors.itemsMessage}
+          onItemChange={updateOrderItem}
+          onAddItem={addOrderItem}
+          onRemoveItem={removeOrderItem}
+        />
 
         <button type="submit">
           Create order
@@ -422,9 +199,27 @@ export function OrderEntryForm() {
           </ul>
 
           <p>
-            {submittedOrder.customerReference} via{' '}
-            {submittedOrder.channel}
+            Customer: {submittedOrder.customerReference}
           </p>
+
+          <p>
+            Contact: {submittedOrder.contactValue} via{' '}
+            {submittedOrder.contactChannel}
+          </p>
+
+          <p>
+            Order channel: {submittedOrder.orderChannel}
+          </p>
+
+          <p>
+            Order date: {submittedOrder.orderDate}
+          </p>
+
+          {submittedOrder.operationalNote && (
+            <p>
+              Note: {submittedOrder.operationalNote}
+            </p>
+          )}
         </section>
       )}
     </section>

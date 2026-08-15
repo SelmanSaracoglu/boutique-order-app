@@ -1,3 +1,4 @@
+export type ContactChannel = 'instagram' | 'whatsapp';
 export type OrderChannel = 'instagram' | 'whatsapp';
 
 export type OrderItemFormValues = {
@@ -10,7 +11,11 @@ export type OrderItemFormValues = {
 
 export type OrderEntryFormValues = {
   customerReference: string;
-  channel: OrderChannel | '';
+  contactChannel: ContactChannel | '';
+  contactValue: string;
+  orderChannel: OrderChannel | '';
+  orderDate: string;
+  operationalNote: string;
   items: OrderItemFormValues[];
 };
 
@@ -24,7 +29,11 @@ export type OrderItemData = {
 
 export type OrderEntryData = {
   customerReference: string;
-  channel: OrderChannel;
+  contactChannel: ContactChannel;
+  contactValue: string;
+  orderChannel: OrderChannel;
+  orderDate: string;
+  operationalNote?: string;
   items: OrderItemData[];
 };
 
@@ -38,7 +47,10 @@ export type OrderItemErrors = {
 
 export type OrderEntryErrors = {
   customerReference?: string;
-  channel?: string;
+  contactChannel?: string;
+  contactValue?: string;
+  orderChannel?: string;
+  orderDate?: string;
   items?: OrderItemErrors[];
   itemsMessage?: string;
 };
