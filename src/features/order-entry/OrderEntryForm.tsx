@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 
 import type {
+  ContactChannel,
   OrderChannel,
   OrderEntryData,
   OrderEntryErrors,
@@ -22,7 +23,11 @@ function createEmptyOrderItem(): OrderItemFormValues {
 
 const initialOrderEntry: OrderEntryFormValues = {
   customerReference: '',
-  channel: '',
+  contactChannel: '',
+  contactValue: '',
+  orderChannel: '',
+  orderDate: '',
+  operationalNote: '',
   items: [createEmptyOrderItem()],
 };
 
@@ -146,39 +151,166 @@ export function OrderEntryForm() {
         </div>
 
         <div className="form-field">
-          <label htmlFor="channel">
-            Channel
-          </label>
+        <label htmlFor="contactChannel">
+          Contact channel
+        </label>
 
-          <select
-            id="channel"
-            name="channel"
-            value={orderEntry.channel}
-            aria-invalid={Boolean(errors.channel)}
-            aria-describedby={
-              errors.channel ? 'channel-error' : undefined
-            }
-            onChange={(event) =>
-              setOrderEntry((currentOrderEntry) => ({
-                ...currentOrderEntry,
-                channel: event.target.value as OrderChannel | '',
-              }))
-            }
+        <select
+          id="contactChannel"
+          name="contactChannel"
+          value={orderEntry.contactChannel}
+          aria-invalid={Boolean(errors.contactChannel)}
+          aria-describedby={
+            errors.contactChannel
+              ? 'contactChannel-error'
+              : undefined
+          }
+          onChange={(event) =>
+            setOrderEntry((currentOrderEntry) => ({
+              ...currentOrderEntry,
+              contactChannel:
+                event.target.value as ContactChannel | '',
+            }))
+          }
+        >
+          <option value="">Select a contact channel</option>
+          <option value="instagram">Instagram</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+
+        {errors.contactChannel && (
+          <span
+            id="contactChannel-error"
+            className="field-error"
           >
-            <option value="">Select a channel</option>
-            <option value="instagram">Instagram</option>
-            <option value="whatsapp">WhatsApp</option>
-          </select>
+            {errors.contactChannel}
+          </span>
+        )}
+      </div>
 
-          {errors.channel && (
-            <span
-              id="channel-error"
-              className="field-error"
-            >
-              {errors.channel}
-            </span>
-          )}
-        </div>
+      <div className="form-field">
+        <label htmlFor="contactValue">
+          Contact value
+        </label>
+
+        <input
+          id="contactValue"
+          type="text"
+          name="contactValue"
+          value={orderEntry.contactValue}
+          aria-invalid={Boolean(errors.contactValue)}
+          aria-describedby={
+            errors.contactValue
+              ? 'contactValue-error'
+              : undefined
+          }
+          onChange={(event) =>
+            setOrderEntry((currentOrderEntry) => ({
+              ...currentOrderEntry,
+              contactValue: event.target.value,
+            }))
+          }
+        />
+
+        {errors.contactValue && (
+          <span
+            id="contactValue-error"
+            className="field-error"
+          >
+            {errors.contactValue}
+          </span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="orderChannel">
+          Order channel
+        </label>
+
+        <select
+          id="orderChannel"
+          name="orderChannel"
+          value={orderEntry.orderChannel}
+          aria-invalid={Boolean(errors.orderChannel)}
+          aria-describedby={
+            errors.orderChannel
+              ? 'orderChannel-error'
+              : undefined
+          }
+          onChange={(event) =>
+            setOrderEntry((currentOrderEntry) => ({
+              ...currentOrderEntry,
+              orderChannel:
+                event.target.value as OrderChannel | '',
+            }))
+          }
+        >
+          <option value="">Select an order channel</option>
+          <option value="instagram">Instagram</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+
+        {errors.orderChannel && (
+          <span
+            id="orderChannel-error"
+            className="field-error"
+          >
+            {errors.orderChannel}
+          </span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="orderDate">
+          Order date
+        </label>
+
+        <input
+          id="orderDate"
+          type="date"
+          name="orderDate"
+          value={orderEntry.orderDate}
+          aria-invalid={Boolean(errors.orderDate)}
+          aria-describedby={
+            errors.orderDate
+              ? 'orderDate-error'
+              : undefined
+          }
+          onChange={(event) =>
+            setOrderEntry((currentOrderEntry) => ({
+              ...currentOrderEntry,
+              orderDate: event.target.value,
+            }))
+          }
+        />
+
+        {errors.orderDate && (
+          <span
+            id="orderDate-error"
+            className="field-error"
+          >
+            {errors.orderDate}
+          </span>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="operationalNote">
+          Operational note
+        </label>
+
+        <textarea
+          id="operationalNote"
+          name="operationalNote"
+          value={orderEntry.operationalNote}
+          onChange={(event) =>
+            setOrderEntry((currentOrderEntry) => ({
+              ...currentOrderEntry,
+              operationalNote: event.target.value,
+            }))
+          }
+        />
+      </div>
 
         <fieldset>
           <legend>Order items</legend>
@@ -422,9 +554,29 @@ export function OrderEntryForm() {
           </ul>
 
           <p>
-            {submittedOrder.customerReference} via{' '}
-            {submittedOrder.channel}
+            Customer: {submittedOrder.customerReference}
           </p>
+
+          <p>
+            Contact: {submittedOrder.contactValue} via{' '}
+            {submittedOrder.contactChannel}
+          </p>
+
+          <p>
+            Order channel: {submittedOrder.orderChannel}
+          </p>
+
+          <p>
+            Order date: {submittedOrder.orderDate}
+          </p>
+
+          {submittedOrder.operationalNote && (
+            <p>
+              Note: {submittedOrder.operationalNote}
+            </p>
+          )}
+
+
         </section>
       )}
     </section>

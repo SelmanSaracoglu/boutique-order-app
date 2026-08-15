@@ -6,7 +6,6 @@ import type {
   OrderItemErrors,
 } from './orderEntry.types';
 
-
 type ValidationResult =
   | {
       success: true;
@@ -17,20 +16,53 @@ type ValidationResult =
       errors: OrderEntryErrors;
     };
 
+function isValidOrderDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
 
 export function validateOrderEntry(
   formValues: OrderEntryFormValues,
 ): ValidationResult {
   const errors: OrderEntryErrors = {};
+
   const customerReference = formValues.customerReference.trim();
-  const channel = formValues.channel;
+  const contactChannel = formValues.contactChannel;
+  const contactValue = formValues.contactValue.trim();
+  const orderChannel = formValues.orderChannel;
+  const orderDate = formValues.orderDate.trim();
+  const operationalNote = formValues.operationalNote.trim();
 
   if (!customerReference) {
     errors.customerReference = 'Customer reference is required.';
   }
 
-  if (!channel) {
-    errors.channel = 'Channel is required.';
+  if (!contactChannel) {
+    errors.contactChannel = 'Contact channel is required.';
+  }
+
+  if (!contactValue) {
+    errors.contactValue = 'Contact value is required.';
+  }
+
+  if (!orderChannel) {
+    errors.orderChannel = 'Order channel is required.';
+  }
+
+  if (!orderDate) {
+    errors.orderDate = 'Order date is required.';
+  } else if (!isValidOrderDate(orderDate)) {
+    errors.orderDate = 'Order date must be a valid date.';
   }
 
   if (formValues.items.length === 0) {
@@ -84,14 +116,11 @@ export function validateOrderEntry(
     errors.items = itemErrors;
   }
 
-  if (!channel) {
-    return {
-      success: false,
-      errors,
-    };
-  }
-
-  if (Object.keys(errors).length > 0) {
+  if (
+    !contactChannel ||
+    !orderChannel ||
+    Object.keys(errors).length > 0
+  ) {
     return {
       success: false,
       errors,
@@ -102,7 +131,11 @@ export function validateOrderEntry(
     success: true,
     data: {
       customerReference,
-      channel,
+      contactChannel,
+      contactValue,
+      orderChannel,
+      orderDate,
+      ...(operationalNote ? { operationalNote } : {}),
       items: validatedItems,
     },
   };

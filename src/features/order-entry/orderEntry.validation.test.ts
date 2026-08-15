@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-
 import type { OrderEntryFormValues } from './orderEntry.types';
 import { validateOrderEntry } from './orderEntry.validation';
 
 const validOrderEntry: OrderEntryFormValues = {
   customerReference: '@selinboutique',
-  channel: 'instagram',
+  contactChannel: 'instagram',
+  contactValue: '@selinboutique',
+  orderChannel: 'instagram',
+  orderDate: '2026-08-14',
+  operationalNote: 'Call before shipping',
   items: [
     {
       supplierAlias: 'A',
@@ -25,7 +28,11 @@ describe('validateOrderEntry', () => {
       success: true,
       data: {
         customerReference: '@selinboutique',
-        channel: 'instagram',
+        contactChannel: 'instagram',
+        contactValue: '@selinboutique',
+        orderChannel: 'instagram',
+        orderDate: '2026-08-14',
+        operationalNote: 'Call before shipping',
         items: [
           {
             supplierAlias: 'A',
@@ -53,16 +60,58 @@ describe('validateOrderEntry', () => {
     });
   });
 
-  it('requires a channel', () => {
+  it('requires a contact channel', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      channel: '',
+      contactChannel: '',
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        channel: 'Channel is required.',
+        contactChannel: 'Contact channel is required.',
+      },
+    });
+  });
+
+  it('requires an  order channel', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      orderChannel: '',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        orderChannel: 'Order channel is required.',
+      },
+    });
+  });
+
+  it('requires an order date', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      orderDate: '',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        orderDate: 'Order date is required.',
+      },
+    });
+  });
+
+  it('requires a contact value', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      contactValue: ' ',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        contactValue: 'Contact value is required.',
       },
     });
   });
@@ -157,10 +206,26 @@ describe('validateOrderEntry', () => {
     });
   });
 
+  it('rejects an invalid order date', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      orderDate: '2026-02-30',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        orderDate: 'Order date must be a valid date.',
+      },
+    });
+  });
+
   it('accepts multiple order items and trims user-entered text', () => {
     const result = validateOrderEntry({
+      ...validOrderEntry,
       customerReference: ' @selinboutique ',
-      channel: 'instagram',
+      contactValue: ' @selinboutique ',
+      operationalNote: ' Call before shipping ',
       items: [
         {
           supplierAlias: ' A ',
@@ -183,7 +248,11 @@ describe('validateOrderEntry', () => {
       success: true,
       data: {
         customerReference: '@selinboutique',
-        channel: 'instagram',
+        contactChannel: 'instagram',
+        contactValue: '@selinboutique',
+        orderChannel: 'instagram',
+        orderDate: '2026-08-14',
+        operationalNote: 'Call before shipping',
         items: [
           {
             supplierAlias: 'A',
@@ -228,4 +297,27 @@ describe('validateOrderEntry', () => {
       },
     });
   });
+
+  it('allows an order without an operational note', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      operationalNote: ' ',
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        customerReference: '@selinboutique',
+        contactChannel: 'instagram',
+        contactValue: '@selinboutique',
+        orderChannel: 'instagram',
+        orderDate: '2026-08-14',
+      },
+    });
+
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('operationalNote');
+    }
+  });
+
 });
