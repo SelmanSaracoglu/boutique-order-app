@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 
-import { CustomerContactFields } from './CustomerContactFields';
+import { CustomerSourceFields } from './CustomerSourceFields';
 import { OrderDetailsFields } from './OrderDetailsFields';
 import { OrderItemsSection } from './OrderItemsSection';
 
@@ -20,15 +20,14 @@ function createEmptyOrderItem(): OrderItemFormValues {
     size: '',
     color: '',
     quantity: '1',
+    unitPrice: '',
   };
 }
 
 const initialOrderEntry: OrderEntryFormValues = {
-  customerReference: '',
-  contactChannel: '',
-  contactValue: '',
-  orderChannel: '',
-  orderDate: '',
+  orderSource: '',
+  customerIdentifier: '',
+  customerName: '',
   operationalNote: '',
   items: [createEmptyOrderItem()],
 };
@@ -118,48 +117,33 @@ export function OrderEntryForm() {
         onSubmit={handleSubmit}
         noValidate
       >
-        <CustomerContactFields
-          customerReference={orderEntry.customerReference}
-          contactChannel={orderEntry.contactChannel}
-          contactValue={orderEntry.contactValue}
+        <CustomerSourceFields
+          orderSource={orderEntry.orderSource}
+          customerIdentifier={orderEntry.customerIdentifier}
+          customerName={orderEntry.customerName}
           errors={errors}
-          onCustomerReferenceChange={(value) =>
+          onOrderSourceChange={(value) =>
             setOrderEntry((current) => ({
               ...current,
-              customerReference: value,
+              orderSource: value,
             }))
           }
-          onContactChannelChange={(value) =>
+          onCustomerIdentifierChange={(value) =>
             setOrderEntry((current) => ({
               ...current,
-              contactChannel: value,
+              customerIdentifier: value,
             }))
           }
-          onContactValueChange={(value) =>
+          onCustomerNameChange={(value) =>
             setOrderEntry((current) => ({
               ...current,
-              contactValue: value,
+              customerName: value,
             }))
           }
         />
 
         <OrderDetailsFields
-          orderChannel={orderEntry.orderChannel}
-          orderDate={orderEntry.orderDate}
           operationalNote={orderEntry.operationalNote}
-          errors={errors}
-          onOrderChannelChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              orderChannel: value,
-            }))
-          }
-          onOrderDateChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              orderDate: value,
-            }))
-          }
           onOperationalNoteChange={(value) =>
             setOrderEntry((current) => ({
               ...current,
@@ -192,34 +176,34 @@ export function OrderEntryForm() {
           <ul>
             {submittedOrder.items.map((item, index) => (
               <li key={index}>
-                {item.supplierAlias} — {item.description},{' '}
-                {item.size}, {item.color} × {item.quantity}
+                {item.supplierAlias} — {item.description}
+                {item.size ? `, ${item.size}` : ''}
+                {item.color ? `, ${item.color}` : ''} × {item.quantity} — €
+                {item.unitPrice.toFixed(2)} each
               </li>
             ))}
           </ul>
 
           <p>
-            Customer: {submittedOrder.customerReference}
+            Source:{' '}
+            {submittedOrder.orderSource === 'instagram'
+              ? 'Instagram'
+              : 'WhatsApp'}
           </p>
 
           <p>
-            Contact: {submittedOrder.contactValue} via{' '}
-            {submittedOrder.contactChannel}
+            Customer identifier: {submittedOrder.customerIdentifier}
           </p>
 
-          <p>
-            Order channel: {submittedOrder.orderChannel}
-          </p>
-
-          <p>
-            Order date: {submittedOrder.orderDate}
-          </p>
-
-          {submittedOrder.operationalNote && (
-            <p>
-              Note: {submittedOrder.operationalNote}
-            </p>
+          {submittedOrder.customerName && (
+            <p>Customer name: {submittedOrder.customerName}</p>
           )}
+
+          <p>
+            Created: {new Date(submittedOrder.createdAt).toLocaleString()}
+          </p>
+
+
         </section>
       )}
     </section>

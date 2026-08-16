@@ -3,11 +3,9 @@ import type { OrderEntryFormValues } from './orderEntry.types';
 import { validateOrderEntry } from './orderEntry.validation';
 
 const validOrderEntry: OrderEntryFormValues = {
-  customerReference: '@selinboutique',
-  contactChannel: 'instagram',
-  contactValue: '@selinboutique',
-  orderChannel: 'instagram',
-  orderDate: '2026-08-14',
+  orderSource: 'instagram',
+  customerIdentifier: '@selinboutique',
+  customerName: 'Selin',
   operationalNote: 'Call before shipping',
   items: [
     {
@@ -16,22 +14,24 @@ const validOrderEntry: OrderEntryFormValues = {
       size: '40',
       color: 'Black',
       quantity: '2',
+      unitPrice: '49.90',
     },
   ],
 };
 
+const createdAt = '2026-08-16T13:30:00.000Z';
+
 describe('validateOrderEntry', () => {
   it('returns validated order data for valid input', () => {
-    const result = validateOrderEntry(validOrderEntry);
+    const result = validateOrderEntry(validOrderEntry, createdAt);
 
     expect(result).toEqual({
       success: true,
       data: {
-        customerReference: '@selinboutique',
-        contactChannel: 'instagram',
-        contactValue: '@selinboutique',
-        orderChannel: 'instagram',
-        orderDate: '2026-08-14',
+        orderSource: 'instagram',
+        customerIdentifier: '@selinboutique',
+        customerName: 'Selin',
+        createdAt,
         operationalNote: 'Call before shipping',
         items: [
           {
@@ -40,80 +40,62 @@ describe('validateOrderEntry', () => {
             size: '40',
             color: 'Black',
             quantity: 2,
+            unitPrice: 49.9,
           },
         ],
       },
     });
   });
 
-  it('requires a customer reference', () => {
+  it('requires an order source', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      customerReference: ' ',
+      orderSource: '',
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        customerReference: 'Customer reference is required.',
+        orderSource: 'Order source is required.',
       },
     });
   });
 
-  it('requires a contact channel', () => {
+  it('requires a customer identifier', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      contactChannel: '',
+      customerIdentifier: ' ',
     });
 
     expect(result).toEqual({
       success: false,
       errors: {
-        contactChannel: 'Contact channel is required.',
+        customerIdentifier: 'Customer identifier is required.',
       },
     });
   });
 
-  it('requires an  order channel', () => {
-    const result = validateOrderEntry({
-      ...validOrderEntry,
-      orderChannel: '',
-    });
+  it('allows an order without a customer name', () => {
+    const result = validateOrderEntry(
+      {
+        ...validOrderEntry,
+        customerName: ' ',
+      },
+      createdAt,
+    );
 
-    expect(result).toEqual({
-      success: false,
-      errors: {
-        orderChannel: 'Order channel is required.',
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        orderSource: 'instagram',
+        customerIdentifier: '@selinboutique',
+        createdAt,
       },
     });
-  });
 
-  it('requires an order date', () => {
-    const result = validateOrderEntry({
-      ...validOrderEntry,
-      orderDate: '',
-    });
-
-    expect(result).toEqual({
-      success: false,
-      errors: {
-        orderDate: 'Order date is required.',
-      },
-    });
-  });
-
-  it('requires a contact value', () => {
-    const result = validateOrderEntry({
-      ...validOrderEntry,
-      contactValue: ' ',
-    });
-
-    expect(result).toEqual({
-      success: false,
-      errors: {
-        contactValue: 'Contact value is required.',
-      },
-    });
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('customerName');
+    }
   });
 
   it('requires at least one order item', () => {
@@ -130,7 +112,7 @@ describe('validateOrderEntry', () => {
     });
   });
 
-  it('requires all order item fields', () => {
+  it('requires required order item fields', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
       items: [
@@ -140,6 +122,7 @@ describe('validateOrderEntry', () => {
           size: '',
           color: '',
           quantity: '',
+          unitPrice: '',
         },
       ],
     });
@@ -151,9 +134,8 @@ describe('validateOrderEntry', () => {
           {
             supplierAlias: 'Supplier alias is required.',
             description: 'Item description is required.',
-            size: 'Size is required.',
-            color: 'Color is required.',
             quantity: 'Quantity must be at least 1.',
+            unitPrice: 'Unit price is required.',
           },
         ],
       },
@@ -206,25 +188,11 @@ describe('validateOrderEntry', () => {
     });
   });
 
-  it('rejects an invalid order date', () => {
-    const result = validateOrderEntry({
-      ...validOrderEntry,
-      orderDate: '2026-02-30',
-    });
-
-    expect(result).toEqual({
-      success: false,
-      errors: {
-        orderDate: 'Order date must be a valid date.',
-      },
-    });
-  });
-
   it('accepts multiple order items and trims user-entered text', () => {
     const result = validateOrderEntry({
       ...validOrderEntry,
-      customerReference: ' @selinboutique ',
-      contactValue: ' @selinboutique ',
+      customerIdentifier: ' @selinboutique ',
+      customerName: ' Selin ',
       operationalNote: ' Call before shipping ',
       items: [
         {
@@ -233,6 +201,7 @@ describe('validateOrderEntry', () => {
           size: ' 40 ',
           color: ' Black ',
           quantity: '2',
+          unitPrice: '49.90',
         },
         {
           supplierAlias: ' B ',
@@ -240,18 +209,20 @@ describe('validateOrderEntry', () => {
           size: ' One size ',
           color: ' Cream ',
           quantity: '1',
+          unitPrice: '29.90',
         },
       ],
-    });
+    },
+    createdAt,
+  );
 
     expect(result).toEqual({
       success: true,
       data: {
-        customerReference: '@selinboutique',
-        contactChannel: 'instagram',
-        contactValue: '@selinboutique',
-        orderChannel: 'instagram',
-        orderDate: '2026-08-14',
+        orderSource: 'instagram',
+        customerIdentifier: '@selinboutique',
+        customerName: 'Selin',
+        createdAt,
         operationalNote: 'Call before shipping',
         items: [
           {
@@ -260,6 +231,7 @@ describe('validateOrderEntry', () => {
             size: '40',
             color: 'Black',
             quantity: 2,
+            unitPrice: 49.9,
           },
           {
             supplierAlias: 'B',
@@ -267,6 +239,7 @@ describe('validateOrderEntry', () => {
             size: 'One size',
             color: 'Cream',
             quantity: 1,
+            unitPrice: 29.9,
           },
         ],
       },
@@ -307,17 +280,72 @@ describe('validateOrderEntry', () => {
     expect(result).toMatchObject({
       success: true,
       data: {
-        customerReference: '@selinboutique',
-        contactChannel: 'instagram',
-        contactValue: '@selinboutique',
-        orderChannel: 'instagram',
-        orderDate: '2026-08-14',
+        orderSource: 'instagram',
+        customerIdentifier: '@selinboutique',
       },
     });
 
     if (result.success) {
       expect(result.data).not.toHaveProperty('operationalNote');
     }
+  });
+
+  it('allows size and color to be omitted', () => {
+    const result = validateOrderEntry(
+      {
+        ...validOrderEntry,
+        items: [
+          {
+            ...validOrderEntry.items[0],
+            size: ' ',
+            color: ' ',
+          },
+        ],
+      },
+      createdAt,
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        items: [
+          {
+            supplierAlias: 'A',
+            description: 'Black linen dress',
+            quantity: 2,
+            unitPrice: 49.9,
+          },
+        ],
+      },
+    });
+
+    if (result.success) {
+      expect(result.data.items[0]).not.toHaveProperty('size');
+      expect(result.data.items[0]).not.toHaveProperty('color');
+    }
+  });
+
+  it('rejects a non-positive unit price', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      items: [
+        {
+          ...validOrderEntry.items[0],
+          unitPrice: '0',
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        items: [
+          {
+            unitPrice: 'Unit price must be greater than 0.',
+          },
+        ],
+      },
+    });
   });
 
 });
