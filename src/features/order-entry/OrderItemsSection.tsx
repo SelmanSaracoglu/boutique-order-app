@@ -120,7 +120,7 @@ export function OrderItemsSection({
 
             <div className="form-field">
               <label htmlFor={`${fieldPrefix}-size`}>
-                Size
+                Size (optional)
               </label>
 
               <input
@@ -128,12 +128,6 @@ export function OrderItemsSection({
                 type="text"
                 name={`items[${index}].size`}
                 value={item.size}
-                aria-invalid={Boolean(itemErrors.size)}
-                aria-describedby={
-                  itemErrors.size
-                    ? `${fieldPrefix}-size-error`
-                    : undefined
-                }
                 onChange={(event) =>
                   onItemChange(
                     index,
@@ -142,20 +136,11 @@ export function OrderItemsSection({
                   )
                 }
               />
-
-              {itemErrors.size && (
-                <span
-                  id={`${fieldPrefix}-size-error`}
-                  className="field-error"
-                >
-                  {itemErrors.size}
-                </span>
-              )}
             </div>
 
             <div className="form-field">
               <label htmlFor={`${fieldPrefix}-color`}>
-                Color
+                Color (optional)
               </label>
 
               <input
@@ -163,12 +148,6 @@ export function OrderItemsSection({
                 type="text"
                 name={`items[${index}].color`}
                 value={item.color}
-                aria-invalid={Boolean(itemErrors.color)}
-                aria-describedby={
-                  itemErrors.color
-                    ? `${fieldPrefix}-color-error`
-                    : undefined
-                }
                 onChange={(event) =>
                   onItemChange(
                     index,
@@ -177,15 +156,6 @@ export function OrderItemsSection({
                   )
                 }
               />
-
-              {itemErrors.color && (
-                <span
-                  id={`${fieldPrefix}-color-error`}
-                  className="field-error"
-                >
-                  {itemErrors.color}
-                </span>
-              )}
             </div>
 
             <div className="form-field">
@@ -224,6 +194,39 @@ export function OrderItemsSection({
                 </span>
               )}
             </div>
+
+            <div className="form-field">
+                <label htmlFor={`${fieldPrefix}-unitPrice`}>
+                    Unit price (€)
+                </label>
+
+                <input
+                    id={`${fieldPrefix}-unitPrice`}
+                    type="number"
+                    name={`items[${index}].unitPrice`}
+                    min="0.01"
+                    step="0.01"
+                    value={item.unitPrice}
+                    aria-invalid={Boolean(itemErrors.unitPrice)}
+                    aria-describedby={
+                    itemErrors.unitPrice
+                        ? `${fieldPrefix}-unitPrice-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                    onItemChange(index, 'unitPrice', event.target.value)
+                    }
+                />
+
+                {itemErrors.unitPrice && (
+                    <span
+                    id={`${fieldPrefix}-unitPrice-error`}
+                    className="field-error"
+                    >
+                    {itemErrors.unitPrice}
+                    </span>
+                )}
+                </div>
 
             {items.length > 1 && (
               <button

@@ -16,53 +16,25 @@ type ValidationResult =
       errors: OrderEntryErrors;
     };
 
-function isValidOrderDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
-
 export function validateOrderEntry(
   formValues: OrderEntryFormValues,
+  createdAt = new Date().toISOString(),
 ): ValidationResult {
   const errors: OrderEntryErrors = {};
 
-  const customerReference = formValues.customerReference.trim();
-  const contactChannel = formValues.contactChannel;
-  const contactValue = formValues.contactValue.trim();
-  const orderChannel = formValues.orderChannel;
-  const orderDate = formValues.orderDate.trim();
+  const orderSource = formValues.orderSource;
+  const customerIdentifier =
+    formValues.customerIdentifier.trim();
+  const customerName = formValues.customerName.trim();
   const operationalNote = formValues.operationalNote.trim();
 
-  if (!customerReference) {
-    errors.customerReference = 'Customer reference is required.';
+  if (!orderSource) {
+    errors.orderSource = 'Order source is required.';
   }
 
-  if (!contactChannel) {
-    errors.contactChannel = 'Contact channel is required.';
-  }
-
-  if (!contactValue) {
-    errors.contactValue = 'Contact value is required.';
-  }
-
-  if (!orderChannel) {
-    errors.orderChannel = 'Order channel is required.';
-  }
-
-  if (!orderDate) {
-    errors.orderDate = 'Order date is required.';
-  } else if (!isValidOrderDate(orderDate)) {
-    errors.orderDate = 'Order date must be a valid date.';
+  if (!customerIdentifier) {
+    errors.customerIdentifier =
+      'Customer identifier is required.';
   }
 
   if (formValues.items.length === 0) {
@@ -80,6 +52,8 @@ export function validateOrderEntry(
     const size = item.size.trim();
     const color = item.color.trim();
     const quantity = Number(item.quantity);
+    const unitPriceValue = item.unitPrice.trim();
+    const unitPrice = Number(unitPriceValue);
 
     if (!supplierAlias) {
       currentItemErrors.supplierAlias = 'Supplier alias is required.';
@@ -89,16 +63,14 @@ export function validateOrderEntry(
       currentItemErrors.description = 'Item description is required.';
     }
 
-    if (!size) {
-      currentItemErrors.size = 'Size is required.';
-    }
-
-    if (!color) {
-      currentItemErrors.color = 'Color is required.';
-    }
-
     if (!Number.isInteger(quantity) || quantity < 1) {
       currentItemErrors.quantity = 'Quantity must be at least 1.';
+    }
+
+    if (!unitPriceValue) {
+      currentItemErrors.unitPrice = 'Unit price is required.';
+    } else if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      currentItemErrors.unitPrice = 'Unit price must be greater than 0.';
     }
 
     itemErrors.push(currentItemErrors);
@@ -106,9 +78,10 @@ export function validateOrderEntry(
     validatedItems.push({
       supplierAlias,
       description,
-      size,
-      color,
+      ... (size ? { size } : {}),
+      ... (color ? { color } : {}),
       quantity,
+      unitPrice,
     });
   });
 
@@ -116,11 +89,7 @@ export function validateOrderEntry(
     errors.items = itemErrors;
   }
 
-  if (
-    !contactChannel ||
-    !orderChannel ||
-    Object.keys(errors).length > 0
-  ) {
+  if (!orderSource || Object.keys(errors).length > 0) {
     return {
       success: false,
       errors,
@@ -130,11 +99,10 @@ export function validateOrderEntry(
   return {
     success: true,
     data: {
-      customerReference,
-      contactChannel,
-      contactValue,
-      orderChannel,
-      orderDate,
+      orderSource,
+      customerIdentifier,
+      ...(customerName ? { customerName } : {}),
+      createdAt,
       ...(operationalNote ? { operationalNote } : {}),
       items: validatedItems,
     },
