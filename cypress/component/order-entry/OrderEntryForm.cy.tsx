@@ -1,10 +1,18 @@
 import { OrderEntryForm } from '../../../src/features/order-entry/OrderEntryForm';
 
 describe('OrderEntryForm', () => {
+  beforeEach(() => {
+    cy.clearLocalStorage();
+  });
+
   it('shows validation errors for missing required information', () => {
     cy.mount(<OrderEntryForm />);
 
     cy.contains('button', 'Create order').click();
+
+    cy.contains(
+      'Please review the highlighted fields before creating the order.',
+    ).should('be.visible');
 
     cy.contains('Order source is required.').should('be.visible');
     cy.contains('Customer identifier is required.').should('be.visible');
@@ -15,7 +23,7 @@ describe('OrderEntryForm', () => {
     cy.contains('Size is required.').should('not.exist');
     cy.contains('Color is required.').should('not.exist');
 
-    cy.contains('Order ready').should('not.exist');
+    cy.contains('Order saved').should('not.exist');
   });
 
   it('rejects invalid quantity and unit price for the correct item', () => {
@@ -35,7 +43,7 @@ describe('OrderEntryForm', () => {
 
     cy.contains('Quantity must be at least 1.').should('be.visible');
     cy.contains('Unit price must be greater than 0.').should('be.visible');
-    cy.contains('Order ready').should('not.exist');
+    cy.contains('Order saved').should('not.exist');
   });
 
   it('captures a realistic two-item Instagram boutique order', () => {
@@ -80,7 +88,8 @@ describe('OrderEntryForm', () => {
     ).should('be.visible');
 
     cy.contains('Created:').should('be.visible');
-  });
+
+    });
 
   it('captures a WhatsApp order without optional customer, size or color information', () => {
     cy.mount(<OrderEntryForm />);
@@ -104,5 +113,6 @@ describe('OrderEntryForm', () => {
     cy.contains('C — Printed scarf × 1 — €19.90 each').should(
       'be.visible',
     );
-  });
+  }); 
+
 });

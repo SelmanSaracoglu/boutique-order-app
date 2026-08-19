@@ -42,6 +42,8 @@ export function OrderEntryForm() {
   const [submittedOrder, setSubmittedOrder] =
     useState<OrderEntryData | null>(null);
 
+  const hasErrors = Object.keys(errors).length > 0;
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -64,13 +66,14 @@ export function OrderEntryForm() {
   ) {
     setOrderEntry((currentOrderEntry) => ({
       ...currentOrderEntry,
-      items: currentOrderEntry.items.map((item, itemIndex) =>
-        itemIndex === index
-          ? {
-              ...item,
-              [field]: value,
-            }
-          : item,
+      items: currentOrderEntry.items.map(
+        (item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                [field]: value,
+              }
+            : item,
       ),
     }));
   }
@@ -103,7 +106,9 @@ export function OrderEntryForm() {
   return (
     <section className="order-entry">
       <header className="order-entry__header">
-        <p className="eyebrow">Boutique Orders</p>
+        <p className="eyebrow">
+          Boutique Orders
+        </p>
 
         <h1>New Order</h1>
 
@@ -117,40 +122,51 @@ export function OrderEntryForm() {
         onSubmit={handleSubmit}
         noValidate
       >
-        <CustomerSourceFields
-          orderSource={orderEntry.orderSource}
-          customerIdentifier={orderEntry.customerIdentifier}
-          customerName={orderEntry.customerName}
-          errors={errors}
-          onOrderSourceChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              orderSource: value,
-            }))
-          }
-          onCustomerIdentifierChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              customerIdentifier: value,
-            }))
-          }
-          onCustomerNameChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              customerName: value,
-            }))
-          }
-        />
+        {hasErrors && (
+          <div
+            className="validation-summary"
+            role="alert"
+          >
+            Please review the highlighted fields before creating the order.
+          </div>
+        )}
 
-        <OrderDetailsFields
-          operationalNote={orderEntry.operationalNote}
-          onOperationalNoteChange={(value) =>
-            setOrderEntry((current) => ({
-              ...current,
-              operationalNote: value,
-            }))
-          }
-        />
+        <div className="order-form__overview">
+          <CustomerSourceFields
+            orderSource={orderEntry.orderSource}
+            customerIdentifier={orderEntry.customerIdentifier}
+            customerName={orderEntry.customerName}
+            errors={errors}
+            onOrderSourceChange={(value) =>
+              setOrderEntry((current) => ({
+                ...current,
+                orderSource: value,
+              }))
+            }
+            onCustomerIdentifierChange={(value) =>
+              setOrderEntry((current) => ({
+                ...current,
+                customerIdentifier: value,
+              }))
+            }
+            onCustomerNameChange={(value) =>
+              setOrderEntry((current) => ({
+                ...current,
+                customerName: value,
+              }))
+            }
+          />
+
+          <OrderDetailsFields
+            operationalNote={orderEntry.operationalNote}
+            onOperationalNoteChange={(value) =>
+              setOrderEntry((current) => ({
+                ...current,
+                operationalNote: value,
+              }))
+            }
+          />
+        </div>
 
         <OrderItemsSection
           items={orderEntry.items}
@@ -161,7 +177,10 @@ export function OrderEntryForm() {
           onRemoveItem={removeOrderItem}
         />
 
-        <button type="submit">
+        <button
+          type="submit"
+          className="button button--primary order-form__submit"
+        >
           Create order
         </button>
       </form>
@@ -171,39 +190,64 @@ export function OrderEntryForm() {
           className="submission-result"
           aria-live="polite"
         >
+          <span className="submission-result__label">
+            Success
+          </span>
+
           <h2>Order ready</h2>
 
           <ul>
-            {submittedOrder.items.map((item, index) => (
-              <li key={index}>
-                {item.supplierAlias} — {item.description}
-                {item.size ? `, ${item.size}` : ''}
-                {item.color ? `, ${item.color}` : ''} × {item.quantity} — €
-                {item.unitPrice.toFixed(2)} each
-              </li>
-            ))}
+            {submittedOrder.items.map(
+              (item, index) => (
+                <li key={index}>
+                  {item.supplierAlias} —{' '}
+                  {item.description}
+                  {item.size
+                    ? `, ${item.size}`
+                    : ''}
+                  {item.color
+                    ? `, ${item.color}`
+                    : ''}{' '}
+                  × {item.quantity} — €
+                  {item.unitPrice.toFixed(2)} each
+                </li>
+              ),
+            )}
           </ul>
 
           <p>
             Source:{' '}
-            {submittedOrder.orderSource === 'instagram'
+            {submittedOrder.orderSource ===
+            'instagram'
               ? 'Instagram'
               : 'WhatsApp'}
           </p>
 
           <p>
-            Customer identifier: {submittedOrder.customerIdentifier}
+            Customer identifier:{' '}
+            {submittedOrder.customerIdentifier}
           </p>
 
           {submittedOrder.customerName && (
-            <p>Customer name: {submittedOrder.customerName}</p>
+            <p>
+              Customer name:{' '}
+              {submittedOrder.customerName}
+            </p>
+          )}
+
+          {submittedOrder.operationalNote && (
+            <p>
+              Operational note:{' '}
+              {submittedOrder.operationalNote}
+            </p>
           )}
 
           <p>
-            Created: {new Date(submittedOrder.createdAt).toLocaleString()}
+            Created:{' '}
+            {new Date(
+              submittedOrder.createdAt,
+            ).toLocaleString()}
           </p>
-
-
         </section>
       )}
     </section>

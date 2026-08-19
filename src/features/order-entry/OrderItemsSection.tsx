@@ -25,8 +25,14 @@ export function OrderItemsSection({
   onRemoveItem,
 }: OrderItemsSectionProps) {
   return (
-    <fieldset>
-      <legend>Order items</legend>
+    <fieldset className="form-section order-items-section">
+      <legend className="form-section__legend">
+        Order items
+      </legend>
+
+      <p className="form-section__description">
+        Add each product included in the customer order.
+      </p>
 
       {itemsMessage && (
         <span
@@ -37,215 +43,255 @@ export function OrderItemsSection({
         </span>
       )}
 
-      {items.map((item, index) => {
-        const itemErrors = errors?.[index] ?? {};
-        const fieldPrefix = `item-${index}`;
+      <div className="order-items-list">
+        {items.map((item, index) => {
+          const itemErrors =
+            errors?.[index] ?? {};
 
-        return (
-          <section
-            key={index}
-            className="order-item"
-          >
-            <h2>Item {index + 1}</h2>
+          const fieldPrefix = `item-${index}`;
 
-            <div className="form-field">
-              <label htmlFor={`${fieldPrefix}-supplierAlias`}>
-                Supplier alias
-              </label>
+          return (
+            <section
+              key={index}
+              className="order-item"
+            >
+              <div className="order-item__header">
+                <h2>
+                  Item {index + 1}
+                </h2>
 
-              <input
-                id={`${fieldPrefix}-supplierAlias`}
-                type="text"
-                name={`items[${index}].supplierAlias`}
-                value={item.supplierAlias}
-                aria-invalid={Boolean(itemErrors.supplierAlias)}
-                aria-describedby={
-                  itemErrors.supplierAlias
-                    ? `${fieldPrefix}-supplierAlias-error`
-                    : undefined
-                }
-                onChange={(event) =>
-                  onItemChange(
-                    index,
-                    'supplierAlias',
-                    event.target.value,
-                  )
-                }
-              />
+                {items.length > 1 && (
+                  <button
+                    type="button"
+                    className="button button--danger button--compact"
+                    onClick={() =>
+                      onRemoveItem(index)
+                    }
+                  >
+                    Remove item
+                  </button>
+                )}
+              </div>
 
-              {itemErrors.supplierAlias && (
-                <span
-                  id={`${fieldPrefix}-supplierAlias-error`}
-                  className="field-error"
-                >
-                  {itemErrors.supplierAlias}
-                </span>
-              )}
-            </div>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-supplierAlias`}
+                  >
+                    Supplier alias
+                  </label>
 
-            <div className="form-field">
-              <label htmlFor={`${fieldPrefix}-description`}>
-                Description
-              </label>
+                  <input
+                    id={`${fieldPrefix}-supplierAlias`}
+                    type="text"
+                    name={`items[${index}].supplierAlias`}
+                    value={item.supplierAlias}
+                    aria-invalid={Boolean(
+                      itemErrors.supplierAlias,
+                    )}
+                    aria-describedby={
+                      itemErrors.supplierAlias
+                        ? `${fieldPrefix}-supplierAlias-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      onItemChange(
+                        index,
+                        'supplierAlias',
+                        event.target.value,
+                      )
+                    }
+                  />
 
-              <input
-                id={`${fieldPrefix}-description`}
-                type="text"
-                name={`items[${index}].description`}
-                value={item.description}
-                aria-invalid={Boolean(itemErrors.description)}
-                aria-describedby={
-                  itemErrors.description
-                    ? `${fieldPrefix}-description-error`
-                    : undefined
-                }
-                onChange={(event) =>
-                  onItemChange(
-                    index,
-                    'description',
-                    event.target.value,
-                  )
-                }
-              />
+                  {itemErrors.supplierAlias && (
+                    <span
+                      id={`${fieldPrefix}-supplierAlias-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.supplierAlias}
+                    </span>
+                  )}
+                </div>
 
-              {itemErrors.description && (
-                <span
-                  id={`${fieldPrefix}-description-error`}
-                  className="field-error"
-                >
-                  {itemErrors.description}
-                </span>
-              )}
-            </div>
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-description`}
+                  >
+                    Description
+                  </label>
 
-            <div className="form-field">
-              <label htmlFor={`${fieldPrefix}-size`}>
-                Size (optional)
-              </label>
+                  <input
+                    id={`${fieldPrefix}-description`}
+                    type="text"
+                    name={`items[${index}].description`}
+                    value={item.description}
+                    aria-invalid={Boolean(
+                      itemErrors.description,
+                    )}
+                    aria-describedby={
+                      itemErrors.description
+                        ? `${fieldPrefix}-description-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      onItemChange(
+                        index,
+                        'description',
+                        event.target.value,
+                      )
+                    }
+                  />
 
-              <input
-                id={`${fieldPrefix}-size`}
-                type="text"
-                name={`items[${index}].size`}
-                value={item.size}
-                onChange={(event) =>
-                  onItemChange(
-                    index,
-                    'size',
-                    event.target.value,
-                  )
-                }
-              />
-            </div>
+                  {itemErrors.description && (
+                    <span
+                      id={`${fieldPrefix}-description-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.description}
+                    </span>
+                  )}
+                </div>
 
-            <div className="form-field">
-              <label htmlFor={`${fieldPrefix}-color`}>
-                Color (optional)
-              </label>
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-size`}
+                  >
+                    Size (optional)
+                  </label>
 
-              <input
-                id={`${fieldPrefix}-color`}
-                type="text"
-                name={`items[${index}].color`}
-                value={item.color}
-                onChange={(event) =>
-                  onItemChange(
-                    index,
-                    'color',
-                    event.target.value,
-                  )
-                }
-              />
-            </div>
+                  <input
+                    id={`${fieldPrefix}-size`}
+                    type="text"
+                    name={`items[${index}].size`}
+                    value={item.size}
+                    onChange={(event) =>
+                      onItemChange(
+                        index,
+                        'size',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </div>
 
-            <div className="form-field">
-              <label htmlFor={`${fieldPrefix}-quantity`}>
-                Quantity
-              </label>
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-color`}
+                  >
+                    Color (optional)
+                  </label>
 
-              <input
-                id={`${fieldPrefix}-quantity`}
-                type="number"
-                name={`items[${index}].quantity`}
-                min="1"
-                step="1"
-                value={item.quantity}
-                aria-invalid={Boolean(itemErrors.quantity)}
-                aria-describedby={
-                  itemErrors.quantity
-                    ? `${fieldPrefix}-quantity-error`
-                    : undefined
-                }
-                onChange={(event) =>
-                  onItemChange(
-                    index,
-                    'quantity',
-                    event.target.value,
-                  )
-                }
-              />
+                  <input
+                    id={`${fieldPrefix}-color`}
+                    type="text"
+                    name={`items[${index}].color`}
+                    value={item.color}
+                    onChange={(event) =>
+                      onItemChange(
+                        index,
+                        'color',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </div>
 
-              {itemErrors.quantity && (
-                <span
-                  id={`${fieldPrefix}-quantity-error`}
-                  className="field-error"
-                >
-                  {itemErrors.quantity}
-                </span>
-              )}
-            </div>
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-quantity`}
+                  >
+                    Quantity
+                  </label>
 
-            <div className="form-field">
-                <label htmlFor={`${fieldPrefix}-unitPrice`}>
+                  <input
+                    id={`${fieldPrefix}-quantity`}
+                    type="number"
+                    name={`items[${index}].quantity`}
+                    min="1"
+                    step="1"
+                    value={item.quantity}
+                    aria-invalid={Boolean(
+                      itemErrors.quantity,
+                    )}
+                    aria-describedby={
+                      itemErrors.quantity
+                        ? `${fieldPrefix}-quantity-error`
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      onItemChange(
+                        index,
+                        'quantity',
+                        event.target.value,
+                      )
+                    }
+                  />
+
+                  {itemErrors.quantity && (
+                    <span
+                      id={`${fieldPrefix}-quantity-error`}
+                      className="field-error"
+                    >
+                      {itemErrors.quantity}
+                    </span>
+                  )}
+                </div>
+
+                <div className="form-field">
+                  <label
+                    htmlFor={`${fieldPrefix}-unitPrice`}
+                  >
                     Unit price (€)
-                </label>
+                  </label>
 
-                <input
+                  <input
                     id={`${fieldPrefix}-unitPrice`}
                     type="number"
                     name={`items[${index}].unitPrice`}
                     min="0.01"
                     step="0.01"
                     value={item.unitPrice}
-                    aria-invalid={Boolean(itemErrors.unitPrice)}
+                    aria-invalid={Boolean(
+                      itemErrors.unitPrice,
+                    )}
                     aria-describedby={
-                    itemErrors.unitPrice
+                      itemErrors.unitPrice
                         ? `${fieldPrefix}-unitPrice-error`
                         : undefined
                     }
                     onChange={(event) =>
-                    onItemChange(index, 'unitPrice', event.target.value)
+                      onItemChange(
+                        index,
+                        'unitPrice',
+                        event.target.value,
+                      )
                     }
-                />
+                  />
 
-                {itemErrors.unitPrice && (
+                  {itemErrors.unitPrice && (
                     <span
-                    id={`${fieldPrefix}-unitPrice-error`}
-                    className="field-error"
+                      id={`${fieldPrefix}-unitPrice-error`}
+                      className="field-error"
                     >
-                    {itemErrors.unitPrice}
+                      {itemErrors.unitPrice}
                     </span>
-                )}
+                  )}
                 </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
 
-            {items.length > 1 && (
-              <button
-                type="button"
-                onClick={() => onRemoveItem(index)}
-              >
-                Remove item
-              </button>
-            )}
-          </section>
-        );
-      })}
-
-      <button
-        type="button"
-        onClick={onAddItem}
-      >
-        Add item
-      </button>
+      <div className="order-items-actions">
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={onAddItem}
+        >
+          Add item
+        </button>
+      </div>
     </fieldset>
   );
 }
