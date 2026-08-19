@@ -26,3 +26,39 @@ boutique-order-app/
 ├── package.json
 └── package-lock.json
 ```
+
+## Setup
+
+Install dependencies from the repository root:
+
+```bash
+npm install
+```
+
+## Development
+
+Start the web application from the repository root:
+
+```bash
+npm run dev
+```
+
+## Verification
+
+Run the repository verification commands from the repository root:
+
+```bash
+npm run typecheck
+npm test
+npm run test:component
+npm run lint
+npm run build
+```
+
+## Preview
+
+Preview the production build locally:
+
+```bash
+npm run preview
+```
