@@ -211,15 +211,20 @@ ordersRouter.get('/:orderId', async (request, response) => {
     const orderResult = await pool.query(
       `
         SELECT
-          id,
-          order_source,
-          customer_identifier,
-          customer_name,
-          operational_note,
-          status,
-          created_at
-        FROM orders
-        WHERE id = $1
+          o.id,
+          o.order_source,
+          o.customer_identifier,
+          o.customer_name,
+          o.operational_note,
+          o.status,
+          o.created_at,
+          (
+          SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0)
+          FROM order_items oi
+          WHERE oi.order_id = o.id
+          ) AS total
+        FROM orders o
+        WHERE o.id = $1
       `,
       [orderId],
     )
@@ -264,11 +269,6 @@ ordersRouter.get('/:orderId', async (request, response) => {
       unitPrice: Number(item.unit_price),
     }))
 
-    const total = items.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
-      0,
-    )
-
     return response.json({
       id: order.id,
       orderSource: order.order_source,
@@ -282,7 +282,7 @@ ordersRouter.get('/:orderId', async (request, response) => {
       status: order.status,
       createdAt: order.created_at.toISOString(),
       items,
-      total,
+      total: Number(order.total),
     })
   } catch (error) {
     console.error('Failed to retrieve order', error)
