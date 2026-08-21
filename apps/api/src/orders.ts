@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { createOrderSchema, orderIdSchema, } from './orderValidation.js'
+import type { PoolClient } from 'pg'
 
 export const ordersRouter = Router()
 
@@ -21,10 +22,14 @@ ordersRouter.post('/', async (request, response) => {
   }
 
   const orderInput = validationResult.data
-  const client = await pool.connect()
-
+  let client: PoolClient | undefined
+  let transactionStarted = false
+  
   try {
+    client = await pool.connect()
+
     await client.query('BEGIN')
+    transactionStarted = true
 
     const orderResult = await client.query(
       `
@@ -131,8 +136,13 @@ ordersRouter.post('/', async (request, response) => {
       items: savedItems,
     })
   } catch (error) {
-    await client.query('ROLLBACK')
-
+    if (client && transactionStarted) {
+      try {
+        await client.query('ROLLBACK')
+      } catch (rollbackError) {
+        console.error('Failed to rollback order transaction', rollbackError)
+      }
+    }
     console.error('Failed to create order', error)
 
     return response.status(500).json({
@@ -142,7 +152,7 @@ ordersRouter.post('/', async (request, response) => {
       },
     })
   } finally {
-    client.release()
+    client?.release()
   }
 })
 
