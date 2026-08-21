@@ -312,46 +312,59 @@ it('returns 400 for a malformed order ID', async () => {
 })
 
 it('rolls back the entire order when an item insert fails', async () => {
-  const response = await request(app)
-    .post('/api/orders')
-    .send({
-      orderSource: 'instagram',
-      customerIdentifier: '@atomicity-test',
-      items: [
-        {
-          supplierAlias: 'supplier-a',
-          description: 'Valid item',
-          quantity: 1,
-          unitPrice: 25,
-        },
-        {
-          supplierAlias: 'supplier-b',
-          description: 'Item that exceeds database price precision',
-          quantity: 1,
-          unitPrice: 10000000000,
-        },
-      ],
+  await pool.query(`
+    ALTER TABLE order_items
+    ADD CONSTRAINT order_items_atomicity_test_failure
+    CHECK (description <> '__force_atomicity_failure__')
+  `)
+
+  try {
+    const response = await request(app)
+      .post('/api/orders')
+      .send({
+        orderSource: 'instagram',
+        customerIdentifier: '@atomicity-test',
+        items: [
+          {
+            supplierAlias: 'supplier-a',
+            description: 'Valid item',
+            quantity: 1,
+            unitPrice: 25,
+          },
+          {
+            supplierAlias: 'supplier-b',
+            description: '__force_atomicity_failure__',
+            quantity: 1,
+            unitPrice: 30,
+          },
+        ],
+      })
+
+    expect(response.status).toBe(500)
+
+    expect(response.body).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to create order.',
+      },
     })
 
-  expect(response.status).toBe(500)
+    const orderCountResult = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM orders',
+    )
 
-  expect(response.body).toEqual({
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: 'Unable to create order.',
-    },
-  })
+    const itemCountResult = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM order_items',
+    )
 
-  const orderCountResult = await pool.query(
-    'SELECT COUNT(*)::int AS count FROM orders',
-  )
-
-  const itemCountResult = await pool.query(
-    'SELECT COUNT(*)::int AS count FROM order_items',
-  )
-
-  expect(orderCountResult.rows[0].count).toBe(0)
-  expect(itemCountResult.rows[0].count).toBe(0)
+    expect(orderCountResult.rows[0].count).toBe(0)
+    expect(itemCountResult.rows[0].count).toBe(0)
+  } finally {
+    await pool.query(`
+      ALTER TABLE order_items
+      DROP CONSTRAINT IF EXISTS order_items_atomicity_test_failure
+    `)
+  }
 })
 
 it('rejects client-controlled order status', async () => {
@@ -408,6 +421,76 @@ it.each([
 
   expect(response.status).toBe(400)
   expect(response.body.error.code).toBe('VALIDATION_ERROR')
+
+  const orderCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM orders',
+  )
+
+  expect(orderCountResult.rows[0].count).toBe(0)
+})
+
+it.each([
+  {
+    name: 'unsupported price decimal precision',
+    unitPrice: 19.999,
+    quantity: 1,
+  },
+  {
+    name: 'price exceeding PostgreSQL NUMERIC range',
+    unitPrice: 10_000_000_000,
+    quantity: 1,
+  },
+  {
+    name: 'quantity exceeding PostgreSQL INTEGER range',
+    unitPrice: 19.99,
+    quantity: 2_147_483_648,
+  },
+])('rejects $name before persistence', async ({ unitPrice, quantity }) => {
+  const response = await request(app)
+    .post('/api/orders')
+    .send({
+      orderSource: 'instagram',
+      customerIdentifier: '@numeric-boundary-test',
+      items: [
+        {
+          supplierAlias: 'supplier-a',
+          description: 'Boundary test item',
+          quantity,
+          unitPrice,
+        },
+      ],
+    })
+
+  expect(response.status).toBe(400)
+  expect(response.body.error.code).toBe('VALIDATION_ERROR')
+
+  const orderCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM orders',
+  )
+
+  const itemCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM order_items',
+  )
+
+  expect(orderCountResult.rows[0].count).toBe(0)
+  expect(itemCountResult.rows[0].count).toBe(0)
+})
+
+it('returns controlled JSON for malformed request JSON', async () => {
+  const response = await request(app)
+    .post('/api/orders')
+    .set('Content-Type', 'application/json')
+    .send('{"orderSource":"instagram"')
+
+  expect(response.status).toBe(400)
+  expect(response.type).toMatch(/json/)
+
+  expect(response.body).toEqual({
+    error: {
+      code: 'INVALID_JSON',
+      message: 'Request body contains invalid JSON.',
+    },
+  })
 
   const orderCountResult = await pool.query(
     'SELECT COUNT(*)::int AS count FROM orders',

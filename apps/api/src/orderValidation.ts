@@ -1,12 +1,15 @@
 import { z } from 'zod'
 
+const MAX_POSTGRES_INTEGER = 2_147_483_647
+const MAX_UNIT_PRICE = 9_999_999_999.99
+
 const orderItemSchema = z.object({
   supplierAlias: z.string().trim().min(1),
   description: z.string().trim().min(1),
   size: z.string().trim().min(1).optional(),
   color: z.string().trim().min(1).optional(),
-  quantity: z.number().int().positive(),
-  unitPrice: z.number().positive(),
+  quantity: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
+  unitPrice: z.number().positive().max(MAX_UNIT_PRICE).multipleOf(0.01),
 })
 
 export const createOrderSchema = z.object({
