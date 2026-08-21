@@ -311,5 +311,47 @@ it('returns 400 for a malformed order ID', async () => {
   })
 })
 
+it('rolls back the entire order when an item insert fails', async () => {
+  const response = await request(app)
+    .post('/api/orders')
+    .send({
+      orderSource: 'instagram',
+      customerIdentifier: '@atomicity-test',
+      items: [
+        {
+          supplierAlias: 'supplier-a',
+          description: 'Valid item',
+          quantity: 1,
+          unitPrice: 25,
+        },
+        {
+          supplierAlias: 'supplier-b',
+          description: 'Item that exceeds database price precision',
+          quantity: 1,
+          unitPrice: 10000000000,
+        },
+      ],
+    })
+
+  expect(response.status).toBe(500)
+
+  expect(response.body).toEqual({
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Unable to create order.',
+    },
+  })
+
+  const orderCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM orders',
+  )
+
+  const itemCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM order_items',
+  )
+
+  expect(orderCountResult.rows[0].count).toBe(0)
+  expect(itemCountResult.rows[0].count).toBe(0)
+})
 
 })
