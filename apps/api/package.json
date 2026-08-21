@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "build": "tsc"
+    "build": "tsc",
+    "db:migrate": "tsx src/scripts/migrate.ts",
+    "db:migrate:test": "tsx src/scripts/migrate.ts --test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

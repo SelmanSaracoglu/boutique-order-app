@@ -6,12 +6,22 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=@boutique-order-app/web",
-    "typecheck": "npm run typecheck --workspace=@boutique-order-app/web",
-    "test": "npm run test --workspace=@boutique-order-app/web",
-    "test:component": "npm run test:component --workspace=@boutique-order-app/web",
-    "lint": "npm run lint --workspace=@boutique-order-app/web",
-    "build": "npm run build --workspace=@boutique-order-app/web",
-    "preview": "npm run preview --workspace=@boutique-order-app/web"
+  "dev": "npm run dev:web",
+  "dev:web": "npm run dev --workspace=@boutique-order-app/web",
+  "dev:api": "npm run dev --workspace=@boutique-order-app/api",
+
+  "typecheck": "npm run typecheck --workspaces --if-present",
+  "test": "npm run test --workspaces --if-present",
+  "test:component": "npm run test:component --workspace=@boutique-order-app/web",
+  "lint": "npm run lint --workspaces --if-present",
+  "build": "npm run build --workspaces --if-present",
+
+  "db:up": "docker compose up -d postgres",
+  "db:down": "docker compose down",
+
+  "preview": "npm run preview --workspace=@boutique-order-app/web",
+
+  "db:migrate": "npm run db:migrate --workspace=@boutique-order-app/api",
+  "db:migrate:test": "npm run db:migrate:test --workspace=@boutique-order-app/api"
   }
 }
