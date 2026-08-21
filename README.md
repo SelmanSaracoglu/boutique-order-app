@@ -1,31 +1,75 @@
 # Boutique Order App
 
-Boutique Order App is a small web application for manually capturing boutique orders received through Instagram or WhatsApp.
+Boutique Order App is a small full-stack application for capturing and managing boutique orders received through Instagram or WhatsApp.
 
-The current product supports Core Order Capture, including customer/source information, multiple order items, validation, operational notes, and a submission summary.
+The application currently supports:
+
+- customer and order source capture,
+- multiple order items,
+- input validation,
+- operational notes,
+- PostgreSQL-backed order persistence,
+- order listing,
+- full order detail retrieval,
+- calculated order totals,
+- automated API integration testing against a real PostgreSQL test database.
 
 ## Technology
+
+### Web
 
 - React
 - TypeScript
 - Vite
 - Vitest
 - Cypress Component Testing
-- ESLint
+
+### API
+
+- Node.js
+- TypeScript
+- Express
+- Zod
+- PostgreSQL
+- `pg`
+- Supertest
+- Vitest
+
+### Engineering
+
 - npm workspaces
+- Docker Compose
+- ESLint
+- versioned SQL migrations
 
 ## Repository Structure
 
 ```text
 boutique-order-app/
 ├── apps/
+│   ├── api/
+│   │   ├── db/
+│   │   │   └── migrations/
+│   │   ├── src/
+│   │   ├── test/
+│   │   ├── .env.example
+│   │   └── package.json
 │   └── web/
 │       ├── src/
 │       ├── cypress/
 │       └── package.json
+├── compose.yaml
 ├── package.json
 └── package-lock.json
 ```
+
+## Prerequisites
+
+Install the following tools before starting:
+
+- Node.js
+- npm
+- Docker with Docker Compose
 
 ## Setup
 
@@ -35,17 +79,183 @@ Install dependencies from the repository root:
 npm install
 ```
 
-## Development
-
-Start the web application from the repository root:
+Create the local API environment file:
 
 ```bash
-npm run dev
+cp apps/api/.env.example apps/api/.env
+```
+
+Update the local values in `apps/api/.env` if necessary.
+
+The environment file must provide:
+
+```text
+POSTGRES_DB
+POSTGRES_USER
+POSTGRES_PASSWORD
+PORT
+DATABASE_URL
+TEST_DATABASE_URL
+```
+
+## PostgreSQL
+
+Start PostgreSQL:
+
+```bash
+npm run db:up
+```
+
+The development database is created by the PostgreSQL container configuration.
+
+Create the integration test database once:
+
+```bash
+docker compose exec postgres \
+  createdb -U boutique_app boutique_orders_test
+```
+
+Apply development database migrations:
+
+```bash
+npm run db:migrate
+```
+
+Apply test database migrations:
+
+```bash
+npm run db:migrate:test
+```
+
+Migration files are stored in:
+
+```text
+apps/api/db/migrations
+```
+
+Applied migrations are tracked in the `schema_migrations` table.
+
+Stop the PostgreSQL container:
+
+```bash
+npm run db:down
+```
+
+The Docker volume is preserved by this command.
+
+## Development
+
+Start the web application:
+
+```bash
+npm run dev:web
+```
+
+Start the API:
+
+```bash
+npm run dev:api
+```
+
+The default API port is:
+
+```text
+3001
+```
+
+## API
+
+The current API exposes:
+
+```text
+POST /api/orders
+GET  /api/orders
+GET  /api/orders/:orderId
+```
+
+### Create Order
+
+```text
+POST /api/orders
+```
+
+Creates an order and its items in a single PostgreSQL transaction.
+
+The server controls:
+
+- order ID,
+- creation timestamp,
+- initial order status.
+
+New orders always begin with:
+
+```text
+NEW
+```
+
+### List Orders
+
+```text
+GET /api/orders
+```
+
+Returns order summaries sorted by creation time in descending order.
+
+Order totals are calculated from persisted item quantity and unit price values rather than stored as redundant data.
+
+### Get Order Detail
+
+```text
+GET /api/orders/:orderId
+```
+
+Returns the full persisted order and its items.
+
+A valid but unknown order ID returns `404`.
+
+A malformed order ID returns `400`.
+
+## Testing
+
+Run the repository test suites:
+
+```bash
+npm test
+```
+
+API integration tests use:
+
+- Supertest,
+- Vitest,
+- a real PostgreSQL test database.
+
+The integration suite verifies persistence behaviour including:
+
+- valid order creation,
+- generated IDs and timestamps,
+- default `NEW` status,
+- multiple order items,
+- optional fields,
+- invalid request rejection,
+- absence of persistence after rejected input,
+- order summary listing,
+- calculated totals,
+- newest-first ordering,
+- full order retrieval,
+- missing-order handling,
+- malformed IDs,
+- server-owned fields,
+- transaction atomicity.
+
+Run Cypress component tests:
+
+```bash
+npm run test:component
 ```
 
 ## Verification
 
-Run the repository verification commands from the repository root:
+Run the full repository verification commands from the repository root:
 
 ```bash
 npm run typecheck
@@ -57,7 +267,7 @@ npm run build
 
 ## Preview
 
-Preview the production build locally:
+Preview the production web build locally:
 
 ```bash
 npm run preview
