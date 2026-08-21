@@ -354,4 +354,66 @@ it('rolls back the entire order when an item insert fails', async () => {
   expect(itemCountResult.rows[0].count).toBe(0)
 })
 
+it('rejects client-controlled order status', async () => {
+  const response = await request(app)
+    .post('/api/orders')
+    .send({
+      orderSource: 'instagram',
+      customerIdentifier: '@status-test',
+      status: 'COMPLETED',
+      items: [
+        {
+          supplierAlias: 'supplier-a',
+          description: 'Black dress',
+          quantity: 1,
+          unitPrice: 25,
+        },
+      ],
+    })
+
+  expect(response.status).toBe(400)
+  expect(response.body.error.code).toBe('VALIDATION_ERROR')
+
+  const orderCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM orders',
+  )
+
+  expect(orderCountResult.rows[0].count).toBe(0)
+})
+
+it.each([
+  { field: 'id', 
+    value: 999 
+  },
+  {
+    field: 'createdAt',
+    value: '2026-08-21T20:00:00.000Z',
+  },
+])('rejects client-controlled $field', async ({ field, value }) => {
+  const response = await request(app)
+    .post('/api/orders')
+    .send({
+      orderSource: 'instagram',
+      customerIdentifier: '@server-owned-test',
+      [field]: value,
+      items: [
+        {
+          supplierAlias: 'supplier-a',
+          description: 'Black dress',
+          quantity: 1,
+          unitPrice: 25,
+        },
+      ],
+    })
+
+  expect(response.status).toBe(400)
+  expect(response.body.error.code).toBe('VALIDATION_ERROR')
+
+  const orderCountResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM orders',
+  )
+
+  expect(orderCountResult.rows[0].count).toBe(0)
+})
+
 })
