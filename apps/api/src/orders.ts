@@ -1,0 +1,297 @@
+import { Router } from 'express'
+import { pool } from './db.js'
+import { createOrderSchema, orderIdSchema, } from './orderValidation.js'
+
+export const ordersRouter = Router()
+
+ordersRouter.post('/', async (request, response) => {
+  const validationResult = createOrderSchema.safeParse(request.body)
+
+  if (!validationResult.success) {
+    return response.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Order input is invalid.',
+        issues: validationResult.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      },
+    })
+  }
+
+  const orderInput = validationResult.data
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const orderResult = await client.query(
+      `
+        INSERT INTO orders (
+          order_source,
+          customer_identifier,
+          customer_name,
+          operational_note
+        )
+        VALUES ($1, $2, $3, $4)
+        RETURNING
+          id,
+          order_source,
+          customer_identifier,
+          customer_name,
+          operational_note,
+          status,
+          created_at
+      `,
+      [
+        orderInput.orderSource,
+        orderInput.customerIdentifier,
+        orderInput.customerName ?? null,
+        orderInput.operationalNote ?? null,
+      ],
+    )
+
+    const order = orderResult.rows[0]
+
+    if (!order) {
+      throw new Error('Order insert returned no row')
+    }
+
+    const savedItems = []
+
+    for (const [index, item] of orderInput.items.entries()) {
+      const itemResult = await client.query(
+        `
+          INSERT INTO order_items (
+            order_id,
+            position,
+            supplier_alias,
+            description,
+            size,
+            color,
+            quantity,
+            unit_price
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING
+            id,
+            position,
+            supplier_alias,
+            description,
+            size,
+            color,
+            quantity,
+            unit_price
+        `,
+        [
+          order.id,
+          index + 1,
+          item.supplierAlias,
+          item.description,
+          item.size ?? null,
+          item.color ?? null,
+          item.quantity,
+          item.unitPrice,
+        ],
+      )
+
+      const savedItem = itemResult.rows[0]
+
+      if (!savedItem) {
+        throw new Error('Order item insert returned no row')
+      }
+
+      savedItems.push({
+        id: savedItem.id,
+        position: savedItem.position,
+        supplierAlias: savedItem.supplier_alias,
+        description: savedItem.description,
+        ...(savedItem.size ? { size: savedItem.size } : {}),
+        ...(savedItem.color ? { color: savedItem.color } : {}),
+        quantity: savedItem.quantity,
+        unitPrice: Number(savedItem.unit_price),
+      })
+    }
+
+    await client.query('COMMIT')
+
+    return response.status(201).json({
+      id: order.id,
+      orderSource: order.order_source,
+      customerIdentifier: order.customer_identifier,
+      ...(order.customer_name
+        ? { customerName: order.customer_name }
+        : {}),
+      ...(order.operational_note
+        ? { operationalNote: order.operational_note }
+        : {}),
+      status: order.status,
+      createdAt: order.created_at.toISOString(),
+      items: savedItems,
+    })
+  } catch (error) {
+    await client.query('ROLLBACK')
+
+    console.error('Failed to create order', error)
+
+    return response.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to create order.',
+      },
+    })
+  } finally {
+    client.release()
+  }
+})
+
+ordersRouter.get('/', async (_request, response) => {
+  try {
+    const result = await pool.query(
+      `
+        SELECT
+          o.id,
+          o.customer_identifier,
+          o.customer_name,
+          o.created_at,
+          o.status,
+          SUM(oi.quantity * oi.unit_price) AS total
+        FROM orders o
+        JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY
+          o.id,
+          o.customer_identifier,
+          o.customer_name,
+          o.created_at,
+          o.status
+        ORDER BY o.created_at DESC
+      `,
+    )
+
+    const orders = result.rows.map((order) => ({
+      id: order.id,
+      customerIdentifier: order.customer_identifier,
+      ...(order.customer_name
+        ? { customerName: order.customer_name }
+        : {}),
+      createdAt: order.created_at.toISOString(),
+      status: order.status,
+      total: Number(order.total),
+    }))
+
+    return response.json(orders)
+  } catch (error) {
+    console.error('Failed to list orders', error)
+
+    return response.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to retrieve orders.',
+      },
+    })
+  }
+})
+
+ordersRouter.get('/:orderId', async (request, response) => {
+  const validationResult = orderIdSchema.safeParse(request.params.orderId)
+
+  if (!validationResult.success) {
+    return response.status(400).json({
+      error: {
+        code: 'INVALID_ORDER_ID',
+        message: 'Order ID is invalid.',
+      },
+    })
+  }
+
+  const orderId = validationResult.data
+
+  try {
+    const orderResult = await pool.query(
+      `
+        SELECT
+          id,
+          order_source,
+          customer_identifier,
+          customer_name,
+          operational_note,
+          status,
+          created_at
+        FROM orders
+        WHERE id = $1
+      `,
+      [orderId],
+    )
+
+    const order = orderResult.rows[0]
+
+    if (!order) {
+      return response.status(404).json({
+        error: {
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order was not found.',
+        },
+      })
+    }
+
+    const itemResult = await pool.query(
+      `
+        SELECT
+          id,
+          position,
+          supplier_alias,
+          description,
+          size,
+          color,
+          quantity,
+          unit_price
+        FROM order_items
+        WHERE order_id = $1
+        ORDER BY position
+      `,
+      [orderId],
+    )
+
+    const items = itemResult.rows.map((item) => ({
+      id: item.id,
+      position: item.position,
+      supplierAlias: item.supplier_alias,
+      description: item.description,
+      ...(item.size ? { size: item.size } : {}),
+      ...(item.color ? { color: item.color } : {}),
+      quantity: item.quantity,
+      unitPrice: Number(item.unit_price),
+    }))
+
+    const total = items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0,
+    )
+
+    return response.json({
+      id: order.id,
+      orderSource: order.order_source,
+      customerIdentifier: order.customer_identifier,
+      ...(order.customer_name
+        ? { customerName: order.customer_name }
+        : {}),
+      ...(order.operational_note
+        ? { operationalNote: order.operational_note }
+        : {}),
+      status: order.status,
+      createdAt: order.created_at.toISOString(),
+      items,
+      total,
+    })
+  } catch (error) {
+    console.error('Failed to retrieve order', error)
+
+    return response.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to retrieve order.',
+      },
+    })
+  }
+})

@@ -17,4 +17,9 @@ export const createOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1),
 }).strict()
 
+export const orderIdSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>
