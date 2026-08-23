@@ -274,6 +274,7 @@ describe('OrdersDashboard', () => {
 
         request.reply({
           statusCode: 200,
+          delay: 300,
           body: [orders[3]],
         });
       },
