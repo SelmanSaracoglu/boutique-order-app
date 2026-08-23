@@ -311,6 +311,7 @@ async function retryLoadOrders() {
                   <span>Created</span>
                   <span>Total</span>
                   <span>Status</span>
+                  <span>Actions</span>
                 </div>
 
                 {filteredOrders.map((order) => (
@@ -372,6 +373,20 @@ async function retryLoadOrders() {
                       >
                         {statusLabels[order.status]}
                       </span>
+                    </div>
+
+                    <div>
+                      <span className="order-row__mobile-label">
+                        Actions
+                      </span>
+
+                      <Link
+                        className="order-row__view"
+                        to={`/orders/${order.id}`}
+                        state={{ fromDashboard: true }}
+                      >
+                        View
+                      </Link>
                     </div>
                   </article>
                 ))}

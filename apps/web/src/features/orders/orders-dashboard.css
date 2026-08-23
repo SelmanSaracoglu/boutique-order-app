@@ -135,7 +135,8 @@
     minmax(180px, 1.5fr)
     minmax(190px, 1.2fr)
     minmax(110px, 0.8fr)
-    minmax(120px, 0.8fr);
+    minmax(120px, 0.8fr)
+    minmax(80px, 0.5fr);
   gap: 18px;
   align-items: center;
 }
@@ -169,6 +170,20 @@
 .order-row__customer span {
   color: var(--color-muted);
   font-size: 0.82rem;
+}
+
+.order-row__view {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.order-row__view:hover {
+  text-decoration: underline;
 }
 
 .order-row__mobile-label {

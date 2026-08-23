@@ -46,6 +46,36 @@ export type PersistedOrder = {
   items: PersistedOrderItem[];
 };
 
+export type OrderDetailItem = {
+  id: number;
+  position: number;
+  supplierAlias: string;
+  description: string;
+  size?: string;
+  color?: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type OrderDetail = {
+  id: number;
+  orderSource: 'instagram' | 'whatsapp';
+  customerIdentifier: string;
+  customerName?: string;
+  operationalNote?: string;
+  status: OrderStatus;
+  createdAt: string;
+  items: OrderDetailItem[];
+  total: number;
+};
+
+export class OrderNotFoundError extends Error {
+  constructor() {
+    super('Order was not found.');
+    this.name = 'OrderNotFoundError'
+  }
+}
+
 export async function listOrders(): Promise<OrderSummary[]> {
   const response = await fetch('/api/orders');
 
@@ -72,5 +102,21 @@ export async function createOrder(
   }
 
   return response.json() as Promise<PersistedOrder>;
+}
+
+export async function getOrder(
+  orderId: number,
+): Promise<OrderDetail> {
+  const response = await fetch(`/api/orders/${orderId}`);
+
+  if (response.status === 404) {
+    throw new OrderNotFoundError();
+  }
+
+  if (!response.ok) {
+    throw new Error('Unable to retrieve order.');
+  }
+
+  return response.json() as Promise<OrderDetail>;
 }
 
