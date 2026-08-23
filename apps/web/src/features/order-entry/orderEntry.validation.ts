@@ -24,7 +24,6 @@ type ValidationResult =
 
 export function validateOrderEntry(
   formValues: OrderEntryFormValues,
-  createdAt = new Date().toISOString(),
 ): ValidationResult {
   const errors: OrderEntryErrors = {};
 
@@ -122,7 +121,6 @@ export function validateOrderEntry(
       orderSource,
       customerIdentifier,
       ...(customerName ? { customerName } : {}),
-      createdAt,
       ...(operationalNote ? { operationalNote } : {}),
       items: validatedItems,
     },

@@ -1,4 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import {
+  useRef,
+  useState,
+  type SubmitEvent,
+} from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import './order-entry.css';
 
 import { CustomerSourceFields } from './CustomerSourceFields';
@@ -6,13 +12,17 @@ import { OrderDetailsFields } from './OrderDetailsFields';
 import { OrderItemsSection } from './OrderItemsSection';
 
 import type {
-  OrderEntryData,
   OrderEntryErrors,
   OrderEntryFormValues,
   OrderItemFormValues,
 } from './orderEntry.types';
 
 import { validateOrderEntry } from './orderEntry.validation';
+
+import {
+  createOrder,
+  type CreateOrderRequest,
+} from '../orders/ordersApi';
 
 function createEmptyOrderItem(): OrderItemFormValues {
   return {
@@ -34,30 +44,61 @@ const initialOrderEntry: OrderEntryFormValues = {
 };
 
 export function OrderEntryForm() {
+  const navigate = useNavigate();
+
   const [orderEntry, setOrderEntry] =
     useState<OrderEntryFormValues>(initialOrderEntry);
 
   const [errors, setErrors] =
     useState<OrderEntryErrors>({});
 
-  const [submittedOrder, setSubmittedOrder] =
-    useState<OrderEntryData | null>(null);
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
+  const [submissionError, setSubmissionError] =
+    useState<string | null>(null);
+
+  const submissionInProgress = useRef(false);
 
   const hasErrors = Object.keys(errors).length > 0;
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: SubmitEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
+
+    if (submissionInProgress.current) {
+      return;
+    }
 
     const result = validateOrderEntry(orderEntry);
 
     if (!result.success) {
       setErrors(result.errors);
-      setSubmittedOrder(null);
+      setSubmissionError(null);
       return;
     }
 
     setErrors({});
-    setSubmittedOrder(result.data);
+    setSubmissionError(null);
+
+    const request: CreateOrderRequest = result.data;
+
+    submissionInProgress.current = true;
+    setIsSubmitting(true);
+
+    try {
+      await createOrder(request);
+
+      navigate('/');
+    } catch {
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
+
+      setSubmissionError(
+        'The order could not be created. Please try again.',
+      );
+    }
   }
 
   function updateOrderItem(
@@ -132,10 +173,21 @@ export function OrderEntryForm() {
           </div>
         )}
 
+        {submissionError && (
+          <div
+            className="submission-error"
+            role="alert"
+          >
+            {submissionError}
+          </div>
+        )}
+
         <div className="order-form__overview">
           <CustomerSourceFields
             orderSource={orderEntry.orderSource}
-            customerIdentifier={orderEntry.customerIdentifier}
+            customerIdentifier={
+              orderEntry.customerIdentifier
+            }
             customerName={orderEntry.customerName}
             errors={errors}
             onOrderSourceChange={(value) =>
@@ -159,7 +211,9 @@ export function OrderEntryForm() {
           />
 
           <OrderDetailsFields
-            operationalNote={orderEntry.operationalNote}
+            operationalNote={
+              orderEntry.operationalNote
+            }
             onOperationalNoteChange={(value) =>
               setOrderEntry((current) => ({
                 ...current,
@@ -181,76 +235,13 @@ export function OrderEntryForm() {
         <button
           type="submit"
           className="button button--primary order-form__submit"
+          disabled={isSubmitting}
         >
-          Create order
+          {isSubmitting
+            ? 'Creating order...'
+            : 'Create order'}
         </button>
       </form>
-
-      {submittedOrder && (
-        <section
-          className="submission-result"
-          aria-live="polite"
-        >
-          <span className="submission-result__label">
-            Success
-          </span>
-
-          <h2>Order ready</h2>
-
-          <ul>
-            {submittedOrder.items.map(
-              (item, index) => (
-                <li key={index}>
-                  {item.supplierAlias} —{' '}
-                  {item.description}
-                  {item.size
-                    ? `, ${item.size}`
-                    : ''}
-                  {item.color
-                    ? `, ${item.color}`
-                    : ''}{' '}
-                  × {item.quantity} — €
-                  {item.unitPrice.toFixed(2)} each
-                </li>
-              ),
-            )}
-          </ul>
-
-          <p>
-            Source:{' '}
-            {submittedOrder.orderSource ===
-            'instagram'
-              ? 'Instagram'
-              : 'WhatsApp'}
-          </p>
-
-          <p>
-            Customer identifier:{' '}
-            {submittedOrder.customerIdentifier}
-          </p>
-
-          {submittedOrder.customerName && (
-            <p>
-              Customer name:{' '}
-              {submittedOrder.customerName}
-            </p>
-          )}
-
-          {submittedOrder.operationalNote && (
-            <p>
-              Operational note:{' '}
-              {submittedOrder.operationalNote}
-            </p>
-          )}
-
-          <p>
-            Created:{' '}
-            {new Date(
-              submittedOrder.createdAt,
-            ).toLocaleString()}
-          </p>
-        </section>
-      )}
     </section>
   );
 }

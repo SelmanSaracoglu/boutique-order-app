@@ -30,7 +30,6 @@ export type OrderEntryData = {
   orderSource: OrderSource;
   customerIdentifier: string;
   customerName?: string;
-  createdAt: string;
   operationalNote?: string;
   items: OrderItemData[];
 };

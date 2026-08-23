@@ -19,11 +19,9 @@ const validOrderEntry: OrderEntryFormValues = {
   ],
 };
 
-const createdAt = '2026-08-16T13:30:00.000Z';
-
 describe('validateOrderEntry', () => {
   it('returns validated order data for valid input', () => {
-    const result = validateOrderEntry(validOrderEntry, createdAt);
+    const result = validateOrderEntry(validOrderEntry);
 
     expect(result).toEqual({
       success: true,
@@ -31,7 +29,6 @@ describe('validateOrderEntry', () => {
         orderSource: 'instagram',
         customerIdentifier: '@selinboutique',
         customerName: 'Selin',
-        createdAt,
         operationalNote: 'Call before shipping',
         items: [
           {
@@ -81,7 +78,6 @@ describe('validateOrderEntry', () => {
         ...validOrderEntry,
         customerName: ' ',
       },
-      createdAt,
     );
 
     expect(result).toMatchObject({
@@ -89,7 +85,6 @@ describe('validateOrderEntry', () => {
       data: {
         orderSource: 'instagram',
         customerIdentifier: '@selinboutique',
-        createdAt,
       },
     });
 
@@ -213,7 +208,6 @@ describe('validateOrderEntry', () => {
         },
       ],
     },
-    createdAt,
   );
 
     expect(result).toEqual({
@@ -222,7 +216,6 @@ describe('validateOrderEntry', () => {
         orderSource: 'instagram',
         customerIdentifier: '@selinboutique',
         customerName: 'Selin',
-        createdAt,
         operationalNote: 'Call before shipping',
         items: [
           {
@@ -302,7 +295,6 @@ describe('validateOrderEntry', () => {
           },
         ],
       },
-      createdAt,
     );
 
     expect(result).toMatchObject({
