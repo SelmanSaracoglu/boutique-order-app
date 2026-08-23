@@ -348,4 +348,90 @@ describe('validateOrderEntry', () => {
     });
   });
 
+  it('rejects a quantity above the PostgreSQL integer range', () => {
+  const result = validateOrderEntry({
+    ...validOrderEntry,
+    items: [
+      {
+        ...validOrderEntry.items[0],
+        quantity: '2147483648',
+      },
+    ],
+  });
+
+  expect(result).toEqual({
+    success: false,
+    errors: {
+      items: [
+        {
+          quantity:
+            'Quantity must be less than or equal to 2147483647.',
+        },
+      ],
+    },
+  });
+});
+
+it('accepts the maximum supported quantity', () => {
+  const result = validateOrderEntry({
+    ...validOrderEntry,
+    items: [
+      {
+        ...validOrderEntry.items[0],
+        quantity: '2147483647',
+      },
+    ],
+  });
+
+  expect(result.success).toBe(true);
+});
+
+it('rejects a unit price with more than two decimal places', () => {
+  const result = validateOrderEntry({
+    ...validOrderEntry,
+    items: [
+      {
+        ...validOrderEntry.items[0],
+        unitPrice: '49.999',
+      },
+    ],
+  });
+
+  expect(result).toEqual({
+    success: false,
+    errors: {
+      items: [
+        {
+          unitPrice:
+            'Unit price must have at most 2 decimal places.',
+        },
+      ],
+    },
+  });
+});
+
+  it('rejects a unit price above the API-supported range', () => {
+    const result = validateOrderEntry({
+      ...validOrderEntry,
+      items: [
+        {
+          ...validOrderEntry.items[0],
+          unitPrice: '10000000000.00',
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      errors: {
+        items: [
+          {
+            unitPrice:
+              'Unit price must be €9,999,999,999.99 or less.',
+          },
+        ],
+      },
+    });
+  });
+
 });

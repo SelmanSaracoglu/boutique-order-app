@@ -208,6 +208,7 @@ export function OrderItemsSection({
                     type="number"
                     name={`items[${index}].quantity`}
                     min="1"
+                    max="2147483647"
                     step="1"
                     value={item.quantity}
                     aria-invalid={Boolean(
@@ -249,6 +250,7 @@ export function OrderItemsSection({
                     type="number"
                     name={`items[${index}].unitPrice`}
                     min="0.01"
+                    max="9999999999.99"
                     step="0.01"
                     value={item.unitPrice}
                     aria-invalid={Boolean(

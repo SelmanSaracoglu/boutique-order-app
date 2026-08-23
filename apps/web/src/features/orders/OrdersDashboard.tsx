@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useState,
 } from 'react';
@@ -85,22 +84,41 @@ export function OrdersDashboard() {
   const [loadState, setLoadState] =
     useState<LoadState>('loading');
 
-  const loadOrders = useCallback(async () => {
-    setLoadState('loading');
+  useEffect(() => {
+  let isActive = true;
 
-    try {
-      const loadedOrders = await listOrders();
+  void listOrders()
+    .then((loadedOrders) => {
+      if (!isActive) {
+        return;
+      }
 
       setOrders(loadedOrders);
       setLoadState('ready');
-    } catch {
-      setLoadState('error');
-    }
-  }, []);
+    })
+    .catch(() => {
+      if (isActive) {
+        setLoadState('error');
+      }
+    });
 
-  useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
+  return () => {
+    isActive = false;
+  };
+}, []);
+
+async function retryLoadOrders() {
+  setLoadState('loading');
+
+  try {
+    const loadedOrders = await listOrders();
+
+    setOrders(loadedOrders);
+    setLoadState('ready');
+  } catch {
+    setLoadState('error');
+  }
+}  
 
   const filteredOrders = orders.filter(
     (order) => matchesFilter(order, filter),
@@ -246,7 +264,7 @@ export function OrdersDashboard() {
               <button
                 type="button"
                 className="orders-retry"
-                onClick={() => void loadOrders()}
+                onClick={() => void retryLoadOrders()}
               >
                 Try again
               </button>

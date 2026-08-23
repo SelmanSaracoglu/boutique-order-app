@@ -6,6 +6,12 @@ import type {
   OrderItemErrors,
 } from './orderEntry.types';
 
+const MAX_POSTGRES_INTEGER = 2_147_483_647;
+const MAX_UNIT_PRICE = 9_999_999_999.99;
+
+const UNIT_PRICE_PATTERN =
+  /^(?:\d+|\d+\.\d{1,2}|\.\d{1,2})$/;
+
 type ValidationResult =
   | {
       success: true;
@@ -65,12 +71,26 @@ export function validateOrderEntry(
 
     if (!Number.isInteger(quantity) || quantity < 1) {
       currentItemErrors.quantity = 'Quantity must be at least 1.';
+    } else if (quantity > MAX_POSTGRES_INTEGER) {
+      currentItemErrors.quantity = 
+        `Quantity must be less than or equal to ${MAX_POSTGRES_INTEGER}.`;
     }
 
     if (!unitPriceValue) {
-      currentItemErrors.unitPrice = 'Unit price is required.';
-    } else if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-      currentItemErrors.unitPrice = 'Unit price must be greater than 0.';
+      currentItemErrors.unitPrice =
+        'Unit price is required.';
+    } else if (
+      !Number.isFinite(unitPrice) ||
+      unitPrice <= 0
+    ) {
+      currentItemErrors.unitPrice =
+        'Unit price must be greater than 0.';
+    } else if (unitPrice > MAX_UNIT_PRICE) {
+      currentItemErrors.unitPrice =
+        'Unit price must be €9,999,999,999.99 or less.';
+    } else if (!UNIT_PRICE_PATTERN.test(unitPriceValue)) {
+      currentItemErrors.unitPrice =
+        'Unit price must have at most 2 decimal places.';
     }
 
     itemErrors.push(currentItemErrors);
