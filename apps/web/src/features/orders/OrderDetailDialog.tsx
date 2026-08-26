@@ -110,9 +110,6 @@ export function OrderDetailDialog() {
 
     let isActive = true;
 
-    setLoadState('loading');
-    setOrder(null);
-
     void getOrder(orderId)
       .then((loadedOrder) => {
         if (!isActive) {
@@ -245,10 +242,14 @@ export function OrderDetailDialog() {
               <button
                 type="button"
                 className="order-detail__retry"
-                onClick={() =>
+                onClick={() => {
+                  setLoadState('loading');
+                  setOrder(null);
                   setRetryToken(
-                    (current) => current + 1,
-                  )
+                    (current) => current + 1, 
+                  );
+                }
+                  
                 }
               >
                 Try again
