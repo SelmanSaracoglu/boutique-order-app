@@ -8,6 +8,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:component": "cypress run --component",
+    "test:e2e": "cypress run --e2e",
+    "test:e2e:open": "cypress open --e2e",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

@@ -13,6 +13,8 @@
   "typecheck": "npm run typecheck --workspaces --if-present",
   "test": "npm run test --workspaces --if-present",
   "test:component": "npm run test:component --workspace=@boutique-order-app/web",
+  "test:e2e": "npm run test:e2e --workspace=@boutique-order-app/web",
+  "test:e2e:open": "npm run test:e2e:open --workspace=@boutique-order-app/web",
   "lint": "npm run lint --workspaces --if-present",
   "build": "npm run build --workspaces --if-present",
 

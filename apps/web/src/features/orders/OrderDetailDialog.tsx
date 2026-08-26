@@ -159,6 +159,7 @@ export function OrderDetailDialog() {
     <dialog
       ref={dialogRef}
       className="order-detail-dialog"
+      data-testid="order-detail-dialog"
       aria-labelledby="order-detail-title"
       onCancel={(event) => {
         event.preventDefault();

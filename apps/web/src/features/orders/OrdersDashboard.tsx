@@ -318,6 +318,7 @@ async function retryLoadOrders() {
                   <article
                     key={order.id}
                     className="order-row"
+                    data-testid="order-row"
                   >
                     <div className="order-row__number">
                       <span className="order-row__mobile-label">
