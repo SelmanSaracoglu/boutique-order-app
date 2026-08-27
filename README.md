@@ -12,6 +12,7 @@ The application currently supports:
 - order listing,
 - full order detail retrieval,
 - calculated order totals,
+- server-validated order lifecycle status updates,
 - automated API integration testing against a real PostgreSQL test database.
 
 ## Technology
@@ -171,6 +172,7 @@ The current API exposes:
 POST /api/orders
 GET  /api/orders
 GET  /api/orders/:orderId
+PATCH /api/orders/:orderId/status
 ```
 
 ### Create Order
@@ -245,13 +247,52 @@ The integration suite verifies persistence behaviour including:
 - missing-order handling,
 - malformed IDs,
 - server-owned fields,
-- transaction atomicity.
+- transaction atomicity,
+- lifecycle transition enforcement,
+- persisted status consistency,
+- idempotent repeated status requests,
+- concurrent status mutation serialization,
+- status update rollback behaviour.
 
 Run Cypress component tests:
 
 ```bash
 npm run test:component
 ```
+
+### Update Order Status
+
+```text
+PATCH /api/orders/:orderId/status
+```
+
+Updates an order's persisted lifecycle status using a strict request body:
+
+```json
+{
+  "status": "IN_PROGRESS"
+}
+```
+
+The server permits these transitions:
+
+```text
+NEW -> IN_PROGRESS
+NEW -> CANCELLED
+IN_PROGRESS -> COMPLETED
+IN_PROGRESS -> CANCELLED
+```
+
+`COMPLETED` and `CANCELLED` are terminal statuses. Repeating the current status is treated as an idempotent success.
+
+The endpoint returns:
+
+- `400` for an invalid order ID or request body,
+- `404` when the order does not exist,
+- `409` when the requested transition conflicts with the persisted status,
+- controlled `500` JSON when persistence fails unexpectedly.
+
+Status decisions and updates run in a PostgreSQL transaction with row-level locking so concurrent requests are evaluated against the latest persisted status.
 
 ## Verification
 

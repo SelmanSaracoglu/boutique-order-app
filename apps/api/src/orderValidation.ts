@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ORDER_STATUSES } from './orderLifecycle.js'
 
 const MAX_POSTGRES_INTEGER = 2_147_483_647
 const MAX_UNIT_PRICE = 9_999_999_999.99
@@ -20,9 +21,14 @@ export const createOrderSchema = z.object({
   items: z.array(orderItemSchema).min(1),
 }).strict()
 
+export const updateOrderStatusSchema = z.object({
+  status: z.enum(ORDER_STATUSES),
+}).strict()
+
 export const orderIdSchema = z.coerce
   .number()
   .int()
   .positive()
+  .max(MAX_POSTGRES_INTEGER)
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>
