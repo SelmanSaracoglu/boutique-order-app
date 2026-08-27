@@ -13,6 +13,8 @@ The application currently supports:
 - full order detail retrieval,
 - calculated order totals,
 - server-validated order lifecycle status updates,
+- Order Detail lifecycle actions with cancellation confirmation,
+- synchronized lifecycle status, counts, and filter membership across Order Detail and Dashboard,
 - automated API integration testing against a real PostgreSQL test database.
 
 ## Technology
@@ -23,7 +25,7 @@ The application currently supports:
 - TypeScript
 - Vite
 - Vitest
-- Cypress Component Testing
+- Cypress Component and End-to-End Testing
 
 ### API
 
@@ -260,11 +262,16 @@ Run Cypress component tests:
 npm run test:component
 ```
 
+Run the full-stack lifecycle E2E journey while PostgreSQL, the API, and the web application are running:
+
+````bash
+npm run test:e2e
+
 ### Update Order Status
 
 ```text
 PATCH /api/orders/:orderId/status
-```
+````
 
 Updates an order's persisted lifecycle status using a strict request body:
 
@@ -302,6 +309,7 @@ Run the full repository verification commands from the repository root:
 npm run typecheck
 npm test
 npm run test:component
+npm run test:e2e
 npm run lint
 npm run build
 ```

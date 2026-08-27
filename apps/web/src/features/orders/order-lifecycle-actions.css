@@ -1,0 +1,143 @@
+.order-lifecycle {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.order-lifecycle__action-row,
+.order-lifecycle__confirmation {
+  display: flex;
+  padding: 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+
+.order-lifecycle__confirmation {
+  border-color: #dfb8b8;
+  background: #fff8f8;
+}
+
+.order-lifecycle__copy h3,
+.order-lifecycle__copy p,
+.order-lifecycle__confirmation h3,
+.order-lifecycle__confirmation p,
+.order-lifecycle__message {
+  margin: 0;
+}
+
+.order-lifecycle__copy p,
+.order-lifecycle__confirmation p {
+  margin-top: 4px;
+  color: var(--color-muted);
+}
+
+.order-lifecycle__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.order-lifecycle__primary-action,
+.order-lifecycle__secondary-action,
+.order-lifecycle__danger-action {
+  padding: 10px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.order-lifecycle__primary-action {
+  border: 1px solid var(--color-accent);
+  color: var(--color-surface);
+  background: var(--color-accent);
+}
+
+.order-lifecycle__primary-action:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.order-lifecycle__secondary-action {
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.order-lifecycle__secondary-action:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+}
+
+.order-lifecycle__danger-action {
+  border: 1px solid #9e3535;
+  color: #ffffff;
+  background: #9e3535;
+}
+
+.order-lifecycle__danger-action:hover:not(:disabled) {
+  background: #7f2929;
+}
+
+.order-lifecycle__primary-action:disabled,
+.order-lifecycle__secondary-action:disabled,
+.order-lifecycle__danger-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.order-lifecycle__message {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.order-lifecycle__message--success {
+  color: #24613c;
+  background: #f0f8f3;
+}
+
+.order-lifecycle__message--error {
+  color: #8a2f2f;
+  background: #fff4f4;
+}
+
+.order-lifecycle__reload {
+  margin-left: 12px;
+  padding: 7px 11px;
+  border: 1px solid currentcolor;
+  border-radius: 8px;
+  color: inherit;
+  background: var(--color-surface);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+@media (max-width: 640px) {
+  .order-lifecycle__action-row,
+  .order-lifecycle__confirmation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .order-lifecycle__actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .order-lifecycle__primary-action,
+  .order-lifecycle__secondary-action,
+  .order-lifecycle__danger-action {
+    width: 100%;
+  }
+
+  .order-lifecycle__reload {
+    display: block;
+    margin: 10px 0 0;
+  }
+}

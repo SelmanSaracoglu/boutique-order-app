@@ -13,6 +13,15 @@ export type OrderSummary = {
   total: number;
 };
 
+export type UpdateOrderStatusRequest = {
+  status: OrderStatus;
+};
+
+export type UpdateOrderStatusResponse = {
+  id: number;
+  status: OrderStatus;
+};
+
 export type CreateOrderItemRequest = {
   supplierAlias: string;
   description: string;
@@ -76,6 +85,13 @@ export class OrderNotFoundError extends Error {
   }
 }
 
+export class OrderStatusConflictError extends Error {
+  constructor() {
+    super('Order status transition is no longer available.');
+    this.name = 'OrderStatusConflictError';
+  }
+}
+
 export async function listOrders(): Promise<OrderSummary[]> {
   const response = await fetch('/api/orders');
 
@@ -118,5 +134,35 @@ export async function getOrder(
   }
 
   return response.json() as Promise<OrderDetail>;
+}
+
+export async function updateOrderStatus(
+  orderId: number,
+  status: OrderStatus,
+): Promise<UpdateOrderStatusResponse> {
+  const requestBody: UpdateOrderStatusRequest = {
+    status,
+  };
+
+  const response = await fetch(
+    `/api/orders/${orderId}/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    },
+  );
+
+  if (response.status === 409) {
+    throw new OrderStatusConflictError();
+  }
+
+  if (!response.ok) {
+    throw new Error('Unable to update order status.');
+  }
+
+  return response.json() as Promise<UpdateOrderStatusResponse>;
 }
 

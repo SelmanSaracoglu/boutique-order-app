@@ -1,8 +1,29 @@
 describe('Order lifecycle', () => {
-  it('creates a persisted order and opens its route-backed detail', () => {
+  it('persists a created order through completion and refresh', () => {
     const uniqueIdentifier = `@e2e-${Date.now()}`;
+    let initialOpenOrderCount = 0;
+    let initialCompletedOrderCount = 0;
+
+    cy.intercept(
+      'PATCH',
+      '**/api/orders/*/status',
+    ).as('updateStatus');
 
     cy.visit('/');
+
+    cy.contains('.summary-card', 'Open Orders')
+      .find('strong')
+      .invoke('text')
+      .then((count) => {
+        initialOpenOrderCount = Number(count);
+      });
+
+    cy.contains('.summary-card', 'Completed Orders')
+      .find('strong')
+      .invoke('text')
+      .then((count) => {
+        initialCompletedOrderCount = Number(count);
+      });
 
     cy.contains('a', 'New Order').click();
 
@@ -60,18 +81,24 @@ describe('Order lifecycle', () => {
 
     cy.location('pathname').should('eq', '/');
 
+    cy.then(() => {
+      cy.contains('.summary-card', 'Open Orders')
+        .find('strong')
+        .should(
+          'have.text',
+          String(initialOpenOrderCount + 1),
+        );
+    });
+
     cy.contains(
       '[data-testid="order-row"]',
       uniqueIdentifier,
     )
       .should('exist')
       .within(() => {
-        cy.contains('E2E Customer').should(
-          'exist',
-        );
-
+        cy.contains('E2E Customer').should('exist');
         cy.contains('€85.00').should('exist');
-
+        cy.contains('New').should('exist');
         cy.contains('a', 'View').click();
       });
 
@@ -80,47 +107,137 @@ describe('Order lifecycle', () => {
       /^\/orders\/\d+$/,
     );
 
-    cy.get('[data-testid="order-detail-dialog"]').should('be.visible');
+    cy.get('[data-testid="order-detail-dialog"]')
+      .should('be.visible')
+      .within(() => {
+        cy.contains('E2E Customer').should('exist');
+        cy.contains(uniqueIdentifier).should('exist');
+        cy.contains('E2E Black Dress').should('exist');
+        cy.contains('strong', 'New').should('exist');
 
-    cy.get('[data-testid="order-detail-dialog"]').within(() => {
-      cy.contains('E2E Customer').should(
+        cy.contains(
+          'button',
+          'Start processing',
+        ).click();
+      });
+
+    cy.wait('@updateStatus')
+      .its('request.body')
+      .should('deep.equal', {
+        status: 'IN_PROGRESS',
+      });
+
+    cy.get(
+      '[data-testid="order-detail-dialog"]',
+    ).within(() => {
+      cy.contains('strong', 'In progress').should(
         'exist',
       );
 
-      cy.contains(uniqueIdentifier).should(
+      cy.contains('button', 'Complete order').should(
+        'be.visible',
+      );
+    });
+
+    cy.contains(
+      '[data-testid="order-row"]',
+      uniqueIdentifier,
+    ).should('contain.text', 'In progress');
+
+    cy.get(
+      '[data-testid="order-detail-dialog"]',
+    ).within(() => {
+      cy.contains('button', 'Complete order').click();
+    });
+
+    cy.wait('@updateStatus')
+      .its('request.body')
+      .should('deep.equal', {
+        status: 'COMPLETED',
+      });
+
+    cy.get(
+      '[data-testid="order-detail-dialog"]',
+    ).within(() => {
+      cy.contains('strong', 'Completed').should(
         'exist',
       );
 
-      cy.contains(
-        'Created by the full-stack E2E journey.',
-      ).should('exist');
-
-      cy.contains('E2E Black Dress').should(
-        'exist',
+      cy.contains('button', 'Complete order').should(
+        'not.exist',
       );
 
-      cy.contains('e2e-supplier').should(
-        'exist',
+      cy.contains('button', 'Cancel order').should(
+        'not.exist',
       );
-
-      cy.contains('Black').should('exist');
-
-      cy.contains('M').should('exist');
-
-      cy.contains('€85.00').should('exist');
 
       cy.contains('button', 'Close').click();
     });
 
     cy.location('pathname').should('eq', '/');
 
-    cy.contains('h1', 'Orders').should(
-      'be.visible',
-    );
+    cy.then(() => {
+      cy.contains('.summary-card', 'Open Orders')
+        .find('strong')
+        .should(
+          'have.text',
+          String(initialOpenOrderCount),
+        );
+
+      cy.contains(
+        '.summary-card',
+        'Completed Orders',
+      )
+        .find('strong')
+        .should(
+          'have.text',
+          String(initialCompletedOrderCount + 1),
+        );
+    });
 
     cy.contains(
       '[data-testid="order-row"]',
       uniqueIdentifier,
-    ).should('exist');
+    ).should('not.exist');
+
+    cy.contains('button', 'Completed').click();
+
+    cy.contains(
+      '[data-testid="order-row"]',
+      uniqueIdentifier,
+    )
+      .should('be.visible')
+      .and('contain.text', 'Completed')
+      .within(() => {
+        cy.contains('a', 'View').click();
+      });
+
+    cy.get(
+      '[data-testid="order-detail-dialog"]',
+    ).within(() => {
+      cy.contains('strong', 'Completed').should(
+        'exist',
+      );
+
+      cy.get(
+        '[aria-label="Order lifecycle actions"]',
+      ).should('not.exist');
+    });
+
+    cy.reload();
+
+    cy.get('[data-testid="order-detail-dialog"]')
+      .should('be.visible')
+      .within(() => {
+        cy.contains(uniqueIdentifier).should('exist');
+
+        cy.contains('strong', 'Completed').should(
+          'exist',
+        );
+
+        cy.get(
+          '[aria-label="Order lifecycle actions"]',
+        ).should('not.exist');
+      });
   });
 });

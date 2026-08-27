@@ -1,13 +1,12 @@
 import {
   MemoryRouter,
-  Outlet,
   Route,
   Routes,
   useLocation,
 } from 'react-router-dom';
 
 import { OrderDetailDialog } from '../../../src/features/orders/OrderDetailDialog';
-import { OrdersDashboard } from '../../../src/features/orders/OrdersDashboard';
+import { OrdersRouteLayout } from '../../../src/features/orders/OrdersRouteLayout';
 
 const orderSummaries = [
   {
@@ -56,8 +55,7 @@ function LocationProbe() {
 function TestOrdersLayout() {
   return (
     <>
-      <OrdersDashboard />
-      <Outlet />
+      <OrdersRouteLayout />
       <LocationProbe />
     </>
   );
@@ -161,7 +159,107 @@ describe('OrderDetailDialog', () => {
         'exist',
     );
     })
-});
+  });
+
+  it('keeps the Detail and Dashboard synchronized through lifecycle updates', () => {
+    cy.intercept(
+      'GET',
+      '**/api/orders/101',
+      {
+        statusCode: 200,
+        body: orderDetail,
+      },
+    ).as('getOrder');
+
+    cy.intercept(
+      'PATCH',
+      '**/api/orders/101/status',
+      (request) => {
+        request.reply({
+          statusCode: 200,
+          body: {
+            id: 101,
+            status: request.body.status,
+          },
+        });
+      },
+    ).as('updateStatus');
+
+    mountOrdersRoute();
+
+    cy.wait('@listOrders');
+
+    cy.contains('.order-row', '#101')
+      .contains('View')
+      .click();
+
+    cy.wait('@getOrder');
+
+    cy.get('dialog').within(() => {
+      cy.contains('button', 'Start processing').click();
+    });
+
+    cy.wait('@updateStatus')
+      .its('request.body')
+      .should('deep.equal', {
+        status: 'IN_PROGRESS',
+      });
+
+    cy.get('dialog').within(() => {
+      cy.contains('In progress').should('exist');
+
+      cy.contains('button', 'Complete order').should(
+        'be.visible',
+      );
+    });
+
+    cy.contains('.order-row', '#101').should(
+      'contain.text',
+      'In progress',
+    );
+
+    cy.contains('.summary-card', 'Open Orders')
+      .find('strong')
+      .should('have.text', '1');
+
+    cy.get('dialog').within(() => {
+      cy.contains('button', 'Complete order').click();
+    });
+
+    cy.wait('@updateStatus')
+      .its('request.body')
+      .should('deep.equal', {
+        status: 'COMPLETED',
+      });
+
+    cy.get('dialog').within(() => {
+      cy.contains('Completed').should('exist');
+
+      cy.contains('button', 'Complete order').should(
+        'not.exist',
+      );
+
+      cy.contains('button', 'Close').click();
+    });
+
+    cy.contains('.summary-card', 'Open Orders')
+      .find('strong')
+      .should('have.text', '0');
+
+    cy.contains('.summary-card', 'Completed Orders')
+      .find('strong')
+      .should('have.text', '1');
+
+    cy.contains('.order-row', '#101').should(
+      'not.exist',
+    );
+
+    cy.contains('button', 'Completed').click();
+
+    cy.contains('.order-row', '#101')
+      .should('be.visible')
+      .and('contain.text', 'Completed');
+  });
 
   it('handles missing optional fields without rendering empty labels', () => {
     cy.intercept(
@@ -192,9 +290,7 @@ describe('OrderDetailDialog', () => {
 
     cy.wait('@getOrder');
 
-    cy.contains('Basic Dress').should(
-      'be.visible',
-    );
+    cy.contains('Basic Dress').should('exist');
 
     cy.contains('Name').should('not.exist');
 

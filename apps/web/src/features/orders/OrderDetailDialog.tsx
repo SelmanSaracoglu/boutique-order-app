@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from 'react-router-dom';
 
-import { getOrder, OrderNotFoundError, type OrderDetail, type OrderStatus } from './ordersApi';
+import { OrderLifecycleActions } from './OrderLifecycleActions';
+import type { OrdersOutletContext } from './OrdersRouteLayout';
+import {
+  getOrder,
+  OrderNotFoundError,
+  type OrderDetail,
+  type OrderStatus,
+  type UpdateOrderStatusResponse,
+} from './ordersApi';
 import './order-detail-dialog.css';
 
 type DetailLoadState =
@@ -46,6 +59,9 @@ export function OrderDetailDialog() {
   const { orderId: orderIdParam } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { onOrderStatusUpdated } =
+  useOutletContext<OrdersOutletContext>();
 
   const dialogRef =
     useRef<HTMLDialogElement>(null);
@@ -152,6 +168,27 @@ export function OrderDetailDialog() {
     });
   }
 
+  function reloadOrder() {
+    setLoadState('loading');
+    setOrder(null);
+    setRetryToken((current) => current + 1);
+  }
+
+  function handleOrderStatusUpdated(
+    updatedOrder: UpdateOrderStatusResponse,
+  ) {
+    setOrder((currentOrder) =>
+      currentOrder
+        ? {
+            ...currentOrder,
+            status: updatedOrder.status,
+          }
+        : currentOrder,
+    );
+
+    onOrderStatusUpdated(updatedOrder);
+  }
+
   return (
     <dialog
       ref={dialogRef}
@@ -242,15 +279,7 @@ export function OrderDetailDialog() {
               <button
                 type="button"
                 className="order-detail__retry"
-                onClick={() => {
-                  setLoadState('loading');
-                  setOrder(null);
-                  setRetryToken(
-                    (current) => current + 1, 
-                  );
-                }
-                  
-                }
+                onClick={ reloadOrder }
               >
                 Try again
               </button>
@@ -301,6 +330,13 @@ export function OrderDetailDialog() {
                   </strong>
                 </div>
               </section>
+
+              <OrderLifecycleActions
+                  orderId={order.id}
+                  status={order.status}
+                  onStatusUpdated={handleOrderStatusUpdated}
+                  onReloadRequested={reloadOrder}
+                />
 
               <section className="order-detail__section">
                 <h3>Customer</h3>

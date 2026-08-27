@@ -4,7 +4,7 @@ import {
   Routes,
 } from 'react-router-dom';
 
-import { OrdersDashboard } from '../../../src/features/orders/OrdersDashboard';
+import { OrdersRouteLayout } from '../../../src/features/orders/OrdersRouteLayout';
 
 const orders = [
   {
@@ -46,7 +46,7 @@ function mountDashboard() {
       <Routes>
         <Route
           path="/"
-          element={<OrdersDashboard />}
+          element={<OrdersRouteLayout  />}
         />
         <Route
           path="/orders/new"

@@ -1,10 +1,8 @@
 import {
-  useEffect,
   useState,
 } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  listOrders,
   type OrderStatus,
   type OrderSummary,
 } from './ordersApi';
@@ -15,10 +13,16 @@ type OrderFilter =
   | 'all'
   | 'completed';
 
-type LoadState =
+export type OrdersLoadState =
   | 'loading'
   | 'ready'
   | 'error';
+
+type OrdersDashboardProps = {
+  orders: OrderSummary[];
+  loadState: OrdersLoadState;
+  onRetryLoadOrders: () => Promise<void>;
+};
 
 const statusLabels: Record<OrderStatus, string> = {
   NEW: 'New',
@@ -75,68 +79,31 @@ function isToday(createdAt: string) {
   );
 }
 
-export function OrdersDashboard() {
-  const [orders, setOrders] = useState<
-    OrderSummary[]
-  >([]);
-  const [filter, setFilter] =
-    useState<OrderFilter>('open');
-  const [loadState, setLoadState] =
-    useState<LoadState>('loading');
+export function OrdersDashboard({
+  orders,
+  loadState,
+  onRetryLoadOrders,
+}: OrdersDashboardProps) {
+    const [filter, setFilter] =
+      useState<OrderFilter>('open');
 
-  useEffect(() => {
-  let isActive = true;
+    const filteredOrders = orders.filter(
+      (order) => matchesFilter(order, filter),
+    );
 
-  void listOrders()
-    .then((loadedOrders) => {
-      if (!isActive) {
-        return;
-      }
+    const openOrders = orders.filter(
+      (order) =>
+        order.status === 'NEW' ||
+        order.status === 'IN_PROGRESS',
+    ).length;
 
-      setOrders(loadedOrders);
-      setLoadState('ready');
-    })
-    .catch(() => {
-      if (isActive) {
-        setLoadState('error');
-      }
-    });
+    const completedOrders = orders.filter(
+      (order) => order.status === 'COMPLETED',
+    ).length;
 
-  return () => {
-    isActive = false;
-  };
-}, []);
-
-async function retryLoadOrders() {
-  setLoadState('loading');
-
-  try {
-    const loadedOrders = await listOrders();
-
-    setOrders(loadedOrders);
-    setLoadState('ready');
-  } catch {
-    setLoadState('error');
-  }
-}  
-
-  const filteredOrders = orders.filter(
-    (order) => matchesFilter(order, filter),
-  );
-
-  const openOrders = orders.filter(
-    (order) =>
-      order.status === 'NEW' ||
-      order.status === 'IN_PROGRESS',
-  ).length;
-
-  const completedOrders = orders.filter(
-    (order) => order.status === 'COMPLETED',
-  ).length;
-
-  const todaysOrders = orders.filter((order) =>
-    isToday(order.createdAt),
-  ).length;
+    const todaysOrders = orders.filter((order) =>
+      isToday(order.createdAt),
+    ).length;
 
   return (
     <main className="page">
@@ -264,7 +231,7 @@ async function retryLoadOrders() {
               <button
                 type="button"
                 className="orders-retry"
-                onClick={() => void retryLoadOrders()}
+                onClick={() => void onRetryLoadOrders()}
               >
                 Try again
               </button>
