@@ -24,6 +24,7 @@
   "preview": "npm run preview --workspace=@boutique-order-app/web",
 
   "db:migrate": "npm run db:migrate --workspace=@boutique-order-app/api",
-  "db:migrate:test": "npm run db:migrate:test --workspace=@boutique-order-app/api"
+  "db:migrate:test": "npm run db:migrate:test --workspace=@boutique-order-app/api",
+  "user:provision": "npm run user:provision --workspace=@boutique-order-app/api --"
   }
 }

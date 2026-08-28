@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "build": "tsc",
     "db:migrate": "tsx src/scripts/migrate.ts",
-    "db:migrate:test": "tsx src/scripts/migrate.ts --test"
+    "db:migrate:test": "tsx src/scripts/migrate.ts --test",
+    "user:provision": "tsx src/scripts/provision-user.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -27,6 +28,8 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "@inquirer/password": "^5.2.0",
+    "argon2": "^0.45.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "pg": "^8.23.0",

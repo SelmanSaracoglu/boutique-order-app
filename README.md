@@ -15,6 +15,9 @@ The application currently supports:
 - server-validated order lifecycle status updates,
 - Order Detail lifecycle actions with cancellation confirmation,
 - synchronized lifecycle status, counts, and filter membership across Order Detail and Dashboard,
+- PostgreSQL-backed named user and credential foundations,
+- trusted CLI-based user provisioning,
+- Argon2id password hashing,
 - automated API integration testing against a real PostgreSQL test database.
 
 ## Technology
@@ -35,6 +38,7 @@ The application currently supports:
 - Zod
 - PostgreSQL
 - `pg`
+- Argon2id
 - Supertest
 - Vitest
 
@@ -54,6 +58,7 @@ boutique-order-app/
 │   │   ├── db/
 │   │   │   └── migrations/
 │   │   ├── src/
+│   │   │   └── auth/
 │   │   ├── test/
 │   │   ├── .env.example
 │   │   └── package.json
@@ -146,6 +151,46 @@ npm run db:down
 
 The Docker volume is preserved by this command.
 
+## User Provisioning
+
+Application users are created through a trusted local CLI. The application does not provide public registration or a browser-based user setup flow.
+
+Apply the development database migrations before provisioning a user:
+
+```bash
+npm run db:migrate
+```
+
+Provision a named user by providing a username and one supported role:
+
+```bash
+npm run user:provision -- --username example.user --role ORDER_OPERATOR
+```
+
+Supported roles are:
+
+```text
+ADMIN
+ORDER_OPERATOR
+PAYMENT_OPERATOR
+FULFILLMENT_OPERATOR
+```
+
+The CLI requests the password and its confirmation through masked terminal prompts. Passwords are never accepted as command-line arguments and are stored only as salted Argon2id hashes.
+
+The current local provisioning policy accepts passwords between 12 and 128 characters. Passphrases and spaces are supported without additional composition requirements.
+
+Usernames are normalized to lowercase before persistence. Leading and trailing whitespace is removed, and duplicate canonical usernames are rejected.
+
+New users begin with:
+
+```text
+status: ACTIVE
+session_version: 1
+```
+
+User provisioning establishes the identity and credential foundation only. HTTP authentication, sessions, and endpoint authorization are introduced in later Epic 5 sprints.
+
 ## Development
 
 Start the web application:
@@ -171,11 +216,13 @@ The default API port is:
 The current API exposes:
 
 ```text
-POST /api/orders
-GET  /api/orders
-GET  /api/orders/:orderId
+POST  /api/orders
+GET   /api/orders
+GET   /api/orders/:orderId
 PATCH /api/orders/:orderId/status
 ```
+
+The order endpoints remain unauthenticated until the authentication and authorization sprints of Epic 5 are completed.
 
 ### Create Order
 
@@ -219,6 +266,40 @@ A valid but unknown order ID returns `404`.
 
 A malformed order ID returns `400`.
 
+### Update Order Status
+
+```text
+PATCH /api/orders/:orderId/status
+```
+
+Updates an order's persisted lifecycle status using a strict request body:
+
+```json
+{
+  "status": "IN_PROGRESS"
+}
+```
+
+The server permits these transitions:
+
+```text
+NEW -> IN_PROGRESS
+NEW -> CANCELLED
+IN_PROGRESS -> COMPLETED
+IN_PROGRESS -> CANCELLED
+```
+
+`COMPLETED` and `CANCELLED` are terminal statuses. Repeating the current status is treated as an idempotent success.
+
+The endpoint returns:
+
+- `400` for an invalid order ID or request body,
+- `404` when the order does not exist,
+- `409` when the requested transition conflicts with the persisted status,
+- controlled `500` JSON when persistence fails unexpectedly.
+
+Status decisions and updates run in a PostgreSQL transaction with row-level locking so concurrent requests are evaluated against the latest persisted status.
+
 ## Testing
 
 Run the repository test suites:
@@ -254,7 +335,14 @@ The integration suite verifies persistence behaviour including:
 - persisted status consistency,
 - idempotent repeated status requests,
 - concurrent status mutation serialization,
-- status update rollback behaviour.
+- status update rollback behaviour,
+- named user provisioning,
+- username normalization and duplicate rejection,
+- supported role persistence,
+- default account status and session version,
+- Argon2id password persistence and verification,
+- rejection of invalid credential data,
+- database-enforced role, status, session version, and password hash constraints.
 
 Run Cypress component tests:
 
@@ -264,54 +352,24 @@ npm run test:component
 
 Run the full-stack lifecycle E2E journey while PostgreSQL, the API, and the web application are running:
 
-````bash
+```bash
 npm run test:e2e
-
-### Update Order Status
-
-```text
-PATCH /api/orders/:orderId/status
-````
-
-Updates an order's persisted lifecycle status using a strict request body:
-
-```json
-{
-  "status": "IN_PROGRESS"
-}
 ```
-
-The server permits these transitions:
-
-```text
-NEW -> IN_PROGRESS
-NEW -> CANCELLED
-IN_PROGRESS -> COMPLETED
-IN_PROGRESS -> CANCELLED
-```
-
-`COMPLETED` and `CANCELLED` are terminal statuses. Repeating the current status is treated as an idempotent success.
-
-The endpoint returns:
-
-- `400` for an invalid order ID or request body,
-- `404` when the order does not exist,
-- `409` when the requested transition conflicts with the persisted status,
-- controlled `500` JSON when persistence fails unexpectedly.
-
-Status decisions and updates run in a PostgreSQL transaction with row-level locking so concurrent requests are evaluated against the latest persisted status.
 
 ## Verification
 
 Run the full repository verification commands from the repository root:
 
 ```bash
+npm run db:migrate
+npm run db:migrate:test
 npm run typecheck
 npm test
 npm run test:component
 npm run test:e2e
 npm run lint
 npm run build
+npm audit --omit=dev
 ```
 
 ## Preview
