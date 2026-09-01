@@ -1,19 +1,20 @@
 import { Router } from 'express'
 import { pool } from './db.js'
+import { requireCsrf } from './auth/requireCsrf.js'
 import {
   canTransitionOrderStatus,
   type OrderStatus,
 } from './orderLifecycle.js'
-import { 
-  createOrderSchema, 
+import {
+  createOrderSchema,
   orderIdSchema,
   updateOrderStatusSchema,
- } from './orderValidation.js'
+} from './orderValidation.js'
 import type { PoolClient } from 'pg'
 
 export const ordersRouter = Router()
 
-ordersRouter.post('/', async (request, response) => {
+ordersRouter.post('/', requireCsrf, async (request, response) => {
   const validationResult = createOrderSchema.safeParse(request.body)
 
   if (!validationResult.success) {
@@ -32,7 +33,7 @@ ordersRouter.post('/', async (request, response) => {
   const orderInput = validationResult.data
   let client: PoolClient | undefined
   let transactionStarted = false
-  
+
   try {
     client = await pool.connect()
 
@@ -164,7 +165,7 @@ ordersRouter.post('/', async (request, response) => {
   }
 })
 
-ordersRouter.patch('/:orderId/status', async (request, response) => {
+ordersRouter.patch('/:orderId/status', requireCsrf, async (request, response) => {
   const orderIdValidationResult = orderIdSchema.safeParse(
     request.params.orderId,
   )

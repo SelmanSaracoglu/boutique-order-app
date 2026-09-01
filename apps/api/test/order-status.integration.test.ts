@@ -1,10 +1,14 @@
-import request from 'supertest'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { app } from '../src/app.js'
 import { pool } from '../src/db.js'
+import {
+  createAuthenticatedTestClient,
+  type AuthenticatedTestClient,
+} from './authenticatedTestClient.js'
+
+let authenticatedClient: AuthenticatedTestClient
 
 async function createOrder(): Promise<number> {
-  const response = await request(app)
+  const response = await authenticatedClient
     .post('/api/orders')
     .send({
       orderSource: 'instagram',
@@ -29,6 +33,12 @@ describe('Order status API', () => {
     await pool.query(
       'TRUNCATE order_items, orders RESTART IDENTITY CASCADE',
     )
+    await pool.query(
+  'TRUNCATE user_sessions, users RESTART IDENTITY CASCADE',
+)
+
+authenticatedClient =
+  await createAuthenticatedTestClient()
   })
 
   afterAll(async () => {
@@ -38,7 +48,7 @@ describe('Order status API', () => {
   it('persists permitted status transitions and exposes the current status', async () => {
     const orderId = await createOrder()
 
-    const inProgressResponse = await request(app)
+    const inProgressResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'IN_PROGRESS' })
 
@@ -48,7 +58,7 @@ describe('Order status API', () => {
       status: 'IN_PROGRESS',
     })
 
-    const completedResponse = await request(app)
+    const completedResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'COMPLETED' })
 
@@ -65,8 +75,8 @@ describe('Order status API', () => {
 
     expect(persistedOrderResult.rows[0].status).toBe('COMPLETED')
 
-    const listResponse = await request(app).get('/api/orders')
-    const detailResponse = await request(app).get(
+    const listResponse = await authenticatedClient.get('/api/orders')
+    const detailResponse = await authenticatedClient.get(
       `/api/orders/${orderId}`,
     )
 
@@ -79,7 +89,7 @@ describe('Order status API', () => {
   it('rejects an invalid transition without changing persisted status', async () => {
     const orderId = await createOrder()
 
-    const response = await request(app)
+    const response = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'COMPLETED' })
 
@@ -102,11 +112,11 @@ describe('Order status API', () => {
   it('treats a repeated status request as an idempotent success', async () => {
     const orderId = await createOrder()
 
-    const firstResponse = await request(app)
+    const firstResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'IN_PROGRESS' })
 
-    const repeatedResponse = await request(app)
+    const repeatedResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'IN_PROGRESS' })
 
@@ -144,7 +154,7 @@ describe('Order status API', () => {
   ])('rejects $name without changing persisted status', async ({ body }) => {
     const orderId = await createOrder()
 
-    const response = await request(app)
+    const response = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send(body)
 
@@ -162,7 +172,7 @@ describe('Order status API', () => {
   it.each(['abc', '2147483648'])(
     'returns 400 for invalid order ID %s',
     async (invalidOrderId) => {
-      const response = await request(app)
+      const response = await authenticatedClient
         .patch(`/api/orders/${invalidOrderId}/status`)
         .send({ status: 'IN_PROGRESS' })
 
@@ -177,7 +187,7 @@ describe('Order status API', () => {
   )
 
   it('returns 404 when the order does not exist', async () => {
-    const response = await request(app)
+    const response = await authenticatedClient
       .patch('/api/orders/999999/status')
       .send({ status: 'IN_PROGRESS' })
 
@@ -193,17 +203,17 @@ describe('Order status API', () => {
     it('serializes concurrent terminal status transitions', async () => {
     const orderId = await createOrder()
 
-    const inProgressResponse = await request(app)
+    const inProgressResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
       .send({ status: 'IN_PROGRESS' })
 
     expect(inProgressResponse.status).toBe(200)
 
     const responses = await Promise.all([
-      request(app)
+      authenticatedClient
         .patch(`/api/orders/${orderId}/status`)
         .send({ status: 'COMPLETED' }),
-      request(app)
+      authenticatedClient
         .patch(`/api/orders/${orderId}/status`)
         .send({ status: 'CANCELLED' }),
     ])
@@ -256,7 +266,7 @@ describe('Order status API', () => {
     `)
 
     try {
-      const response = await request(app)
+      const response = await authenticatedClient
         .patch(`/api/orders/${orderId}/status`)
         .send({ status: 'IN_PROGRESS' })
 
