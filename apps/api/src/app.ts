@@ -1,8 +1,10 @@
 import express, { type ErrorRequestHandler } from 'express'
 import { ordersRouter } from './orders.js'
+import { sessionMiddleware } from './auth/session.js'
 
 export const app = express()
 
+app.use(sessionMiddleware)
 app.use(express.json())
 
 app.use('/api/orders', ordersRouter)

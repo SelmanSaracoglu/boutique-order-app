@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   provisionUser,
-  UserProvisioningError,
+  type UserProvisioningError,
 } from '../src/auth/provisionUser.js'
 import {
   hashPassword,
@@ -102,9 +102,9 @@ describe('User provisioning', () => {
         password: VALID_PASSWORD,
         role: 'FULFILLMENT_OPERATOR',
       }),
-    ).rejects.toMatchObject<Partial<UserProvisioningError>>({
+    ).rejects.toMatchObject({
       code: 'USERNAME_EXISTS',
-    })
+    } satisfies Partial<UserProvisioningError>)
 
     const countResult = await pool.query(
       'SELECT COUNT(*)::int AS count FROM users',
@@ -120,9 +120,9 @@ describe('User provisioning', () => {
         password: 'short',
         role: 'ORDER_OPERATOR',
       }),
-    ).rejects.toMatchObject<Partial<UserProvisioningError>>({
+    ).rejects.toMatchObject({
       code: 'INVALID_INPUT',
-    })
+    } satisfies Partial<UserProvisioningError>)
 
     const countResult = await pool.query(
       'SELECT COUNT(*)::int AS count FROM users',
