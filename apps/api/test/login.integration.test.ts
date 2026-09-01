@@ -235,4 +235,177 @@ describe('Login API', () => {
 
     expect(sessionResult.rows[0].count).toBe(1)
     })
+
+    it('restores the authenticated user from the server-side session', async () => {
+  const user = await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  const loginResponse = await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  const sessionResponse = await agent
+    .get('/api/auth/session')
+    .expect(200)
+
+  expect(sessionResponse.body).toEqual({
+    user: {
+      id: user.id,
+      username: 'order.operator',
+      role: 'ORDER_OPERATOR',
+    },
+    csrfToken: loginResponse.body.csrfToken,
+  })
+})
+it('rejects a session request from an unauthenticated client', async () => {
+  const response = await request(app)
+    .get('/api/auth/session')
+    .expect(401)
+
+  expect(response.body).toEqual({
+    error: {
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Authentication required.',
+    },
+  })
+
+  expect(response.headers['set-cookie']).toBeUndefined()
+
+  const sessionResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_sessions',
+  )
+
+  expect(sessionResult.rows[0].count).toBe(0)
+})
+it('invalidates an existing session when the user is disabled', async () => {
+  const user = await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  await pool.query(
+    `
+      UPDATE users
+      SET status = 'DISABLED'
+      WHERE id = $1
+    `,
+    [user.id],
+  )
+
+  const response = await agent
+    .get('/api/auth/session')
+    .expect(401)
+
+  expect(response.body).toEqual({
+    error: {
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Authentication required.',
+    },
+  })
+
+  const sessionResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_sessions',
+  )
+
+  expect(sessionResult.rows[0].count).toBe(0)
+})
+it('invalidates an existing session when the session version changes', async () => {
+  const user = await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  await pool.query(
+    `
+      UPDATE users
+      SET session_version = session_version + 1
+      WHERE id = $1
+    `,
+    [user.id],
+  )
+
+  const response = await agent
+    .get('/api/auth/session')
+    .expect(401)
+
+  expect(response.body).toEqual({
+    error: {
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Authentication required.',
+    },
+  })
+
+  const sessionResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_sessions',
+  )
+
+  expect(sessionResult.rows[0].count).toBe(0)
+})
+it('returns the current database role instead of the role from login time', async () => {
+  const user = await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  await pool.query(
+    `
+      UPDATE users
+      SET role = 'PAYMENT_OPERATOR'
+      WHERE id = $1
+    `,
+    [user.id],
+  )
+
+  const response = await agent
+    .get('/api/auth/session')
+    .expect(200)
+
+  expect(response.body.user).toEqual({
+    id: user.id,
+    username: 'order.operator',
+    role: 'PAYMENT_OPERATOR',
+  })
+})
 })

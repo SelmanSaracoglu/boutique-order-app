@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authenticateUser } from './authenticateUser.js'
 import { establishAuthenticatedSession } from './sessionLifecycle.js'
+import { requireAuthentication } from './requireAuthentication.js'
 
 export const authRouter = Router()
 
@@ -35,3 +36,30 @@ authRouter.post('/login', async (request, response, next) => {
     next(error)
   }
 })
+
+authRouter.get(
+  '/session',
+  requireAuthentication,
+  (request, response, next) => {
+    const authenticatedUser = request.authenticatedUser
+    const csrfToken = request.session.csrfToken
+
+    if (
+      !authenticatedUser ||
+      typeof csrfToken !== 'string'
+    ) {
+      next(
+        new Error(
+          'Authenticated session context is incomplete',
+        ),
+      )
+      return
+    }
+
+    response.status(200).json({
+      user: authenticatedUser,
+      csrfToken,
+    })
+  },
+)
+

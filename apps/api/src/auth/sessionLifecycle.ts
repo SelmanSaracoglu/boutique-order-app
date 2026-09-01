@@ -34,6 +34,20 @@ function saveSession(request: Request): Promise<void> {
   })
 }
 
+export function destroySession(request: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    request.session.destroy((error) => {
+      if (error) {
+        reject(error)
+
+        return
+      }
+
+      resolve()
+    })
+  })
+}
+
 export async function establishAuthenticatedSession(
   request: Request,
   identity: AuthenticatedSessionIdentity,
