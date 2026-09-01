@@ -408,4 +408,99 @@ it('returns the current database role instead of the role from login time', asyn
     role: 'PAYMENT_OPERATOR',
   })
 })
+
+it('destroys the server-side session and clears the cookie on logout', async () => {
+  await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  const loginResponse = await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  const logoutResponse = await agent
+    .post('/api/auth/logout')
+    .set('x-csrf-token', loginResponse.body.csrfToken)
+    .expect(204)
+
+  expect(logoutResponse.text).toBe('')
+
+  const clearedSessionCookie = findSessionCookie(
+    logoutResponse.headers['set-cookie'],
+  )
+
+  expect(clearedSessionCookie).toEqual(expect.any(String))
+  expect(clearedSessionCookie).toContain('boutique.sid=;')
+  expect(clearedSessionCookie).toContain(
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+  )
+
+  const sessionResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_sessions',
+  )
+
+  expect(sessionResult.rows[0].count).toBe(0)
+
+  await agent
+    .get('/api/auth/session')
+    .expect(401)
+})
+it('rejects logout when the CSRF token is missing or incorrect', async () => {
+  await provisionUser({
+    username: 'order.operator',
+    password: VALID_PASSWORD,
+    role: 'ORDER_OPERATOR',
+  })
+
+  const agent = request.agent(app)
+
+  const loginResponse = await agent
+    .post('/api/auth/login')
+    .send({
+      username: 'order.operator',
+      password: VALID_PASSWORD,
+    })
+    .expect(200)
+
+  const expectedError = {
+    error: {
+      code: 'INVALID_CSRF_TOKEN',
+      message: 'Invalid CSRF token.',
+    },
+  }
+
+  const missingTokenResponse = await agent
+    .post('/api/auth/logout')
+    .expect(403)
+
+  const incorrectTokenResponse = await agent
+    .post('/api/auth/logout')
+    .set('x-csrf-token', 'A'.repeat(43))
+    .expect(403)
+
+  expect(missingTokenResponse.body).toEqual(expectedError)
+  expect(incorrectTokenResponse.body).toEqual(expectedError)
+
+  const sessionResult = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM user_sessions',
+  )
+
+  expect(sessionResult.rows[0].count).toBe(1)
+
+  const sessionResponse = await agent
+    .get('/api/auth/session')
+    .expect(200)
+
+  expect(sessionResponse.body.csrfToken).toBe(
+    loginResponse.body.csrfToken,
+  )
+})
 })

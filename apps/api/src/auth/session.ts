@@ -5,6 +5,7 @@ import { pool } from '../db.js'
 
 export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 export const SESSION_ABSOLUTE_TIMEOUT_MS = 8 * 60 * 60 * 1000
+export const SESSION_COOKIE_NAME = 'boutique.sid'
 
 const SESSION_SECRET_EXAMPLE =
   'replace_with_at_least_32_random_bytes'
@@ -25,7 +26,7 @@ const PostgresSessionStore = connectPgSimple(session)
 const isProduction = process.env.NODE_ENV === 'production'
 
 export const sessionMiddleware = session({
-    name: 'boutique.sid',
+    name: SESSION_COOKIE_NAME,
 
     secret: sessionSecret,
 

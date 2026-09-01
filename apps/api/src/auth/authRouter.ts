@@ -1,7 +1,12 @@
 import { Router } from 'express'
 import { authenticateUser } from './authenticateUser.js'
-import { establishAuthenticatedSession } from './sessionLifecycle.js'
+import { 
+  destroySession,
+  establishAuthenticatedSession 
+} from './sessionLifecycle.js'
 import { requireAuthentication } from './requireAuthentication.js'
+import { requireCsrf } from './requireCsrf.js'
+import { SESSION_COOKIE_NAME } from './session.js'
 
 export const authRouter = Router()
 
@@ -62,4 +67,21 @@ authRouter.get(
     })
   },
 )
+authRouter.post(
+  '/logout',
+  requireAuthentication,
+  requireCsrf,
+  async (request, response, next) => {
+    try {
+      await destroySession(request)
 
+      response.clearCookie(SESSION_COOKIE_NAME, {
+        path: '/',
+      })
+
+      response.status(204).send()
+    } catch (error) {
+      next(error)
+    }
+  },
+)
