@@ -1,3 +1,5 @@
+import { CSRF_HEADER_NAME } from '../auth/authApi';
+
 export type OrderStatus =
   | 'NEW'
   | 'IN_PROGRESS'
@@ -104,11 +106,14 @@ export async function listOrders(): Promise<OrderSummary[]> {
 
 export async function createOrder(
   order: CreateOrderRequest,
+  csrfToken: string,
 ): Promise<PersistedOrder> {
   const response = await fetch('/api/orders', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
+      [CSRF_HEADER_NAME]: csrfToken,
     },
     body: JSON.stringify(order),
   });
@@ -139,6 +144,7 @@ export async function getOrder(
 export async function updateOrderStatus(
   orderId: number,
   status: OrderStatus,
+  csrfToken: string,
 ): Promise<UpdateOrderStatusResponse> {
   const requestBody: UpdateOrderStatusRequest = {
     status,
@@ -148,8 +154,10 @@ export async function updateOrderStatus(
     `/api/orders/${orderId}/status`,
     {
       method: 'PATCH',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        [CSRF_HEADER_NAME]: csrfToken,
       },
       body: JSON.stringify(requestBody),
     },

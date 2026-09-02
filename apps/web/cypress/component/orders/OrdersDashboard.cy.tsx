@@ -5,6 +5,9 @@ import {
 } from 'react-router-dom';
 
 import { OrdersRouteLayout } from '../../../src/features/orders/OrdersRouteLayout';
+import { AuthenticatedTestProvider } from '../../support/AuthenticatedTestProvider';
+
+import type { UserRole } from '../../../src/features/auth/auth.types';
 
 const orders = [
   {
@@ -40,20 +43,24 @@ const orders = [
   },
 ];
 
-function mountDashboard() {
+function mountDashboard(
+  role: UserRole = 'ADMIN',
+) {
   cy.mount(
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route
-          path="/"
-          element={<OrdersRouteLayout  />}
-        />
-        <Route
-          path="/orders/new"
-          element={<h1>New Order Route</h1>}
-        />
-      </Routes>
-    </MemoryRouter>,
+    <AuthenticatedTestProvider role={role}>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={<OrdersRouteLayout />}
+          />
+          <Route
+            path="/orders/new"
+            element={<h1>New Order Route</h1>}
+          />
+        </Routes>
+      </MemoryRouter>
+    </AuthenticatedTestProvider>
   );
 }
 
@@ -332,4 +339,53 @@ describe('OrdersDashboard', () => {
       'be.visible',
     );
   });
+
+  const orderCreationRoles: readonly UserRole[] = [
+  'ADMIN',
+  'ORDER_OPERATOR',
+];
+
+for (const role of orderCreationRoles) {
+  it(`shows order creation actions for ${role}`, () => {
+    cy.intercept('GET', '**/api/orders', {
+      statusCode: 200,
+      body: [],
+    }).as('listOrders');
+
+    mountDashboard(role);
+
+    cy.wait('@listOrders');
+
+    cy.get('a[href="/orders/new"]').should(
+      'have.length',
+      2,
+    );
+  });
+}
+
+const readOnlyCreationRoles: readonly UserRole[] = [
+  'PAYMENT_OPERATOR',
+  'FULFILLMENT_OPERATOR',
+];
+
+for (const role of readOnlyCreationRoles) {
+  it(`hides order creation actions for ${role}`, () => {
+    cy.intercept('GET', '**/api/orders', {
+      statusCode: 200,
+      body: [],
+    }).as('listOrders');
+
+    mountDashboard(role);
+
+    cy.wait('@listOrders');
+
+    cy.get('a[href="/orders/new"]').should(
+      'not.exist',
+    );
+
+    cy.contains(
+      'There are currently no customer orders to review.',
+    ).should('be.visible');
+  });
+}
 });

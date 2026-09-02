@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Cypress local credentials
+/apps/web/cypress.env.json

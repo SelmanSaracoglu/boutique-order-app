@@ -7,6 +7,7 @@ import {
 
 import { OrderDetailDialog } from '../../../src/features/orders/OrderDetailDialog';
 import { OrdersRouteLayout } from '../../../src/features/orders/OrdersRouteLayout';
+import { AuthenticatedTestProvider } from '../../support/AuthenticatedTestProvider';
 
 const orderSummaries = [
   {
@@ -65,26 +66,28 @@ function mountOrdersRoute(
   initialEntry:
     | string
     | {
-        pathname: string;
-        state?: {
-          fromDashboard?: boolean;
-        };
-      } = '/',
+      pathname: string;
+      state?: {
+        fromDashboard?: boolean;
+      };
+    } = '/',
 ) {
   cy.mount(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route
-          path="/"
-          element={<TestOrdersLayout />}
-        >
+    <AuthenticatedTestProvider>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
           <Route
-            path="orders/:orderId"
-            element={<OrderDetailDialog />}
-          />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+            path="/"
+            element={<TestOrdersLayout />}
+          >
+            <Route
+              path="orders/:orderId"
+              element={<OrderDetailDialog />}
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    </AuthenticatedTestProvider>
   );
 }
 
@@ -128,36 +131,36 @@ describe('OrderDetailDialog', () => {
     );
 
     cy.get('dialog').within(() => {
-    cy.contains('h2', 'Order #101').should(
-      'exist',
-    );
-    cy.contains('New Customer').should(
-    'exist',
-    );
-
-    cy.contains('@newcustomer').should(
+      cy.contains('h2', 'Order #101').should(
         'exist',
-    );
-
-    cy.contains('Instagram').should(
+      );
+      cy.contains('New Customer').should(
         'exist',
-    );
+      );
 
-    cy.contains('Call before shipping.').should(
+      cy.contains('@newcustomer').should(
         'exist',
-    );
+      );
 
-    cy.contains('Black Dress').should(
+      cy.contains('Instagram').should(
         'exist',
-    );
+      );
 
-    cy.contains('supplier-a').should(
+      cy.contains('Call before shipping.').should(
         'exist',
-    );
+      );
 
-    cy.contains('Black').should(
+      cy.contains('Black Dress').should(
         'exist',
-    );
+      );
+
+      cy.contains('supplier-a').should(
+        'exist',
+      );
+
+      cy.contains('Black').should(
+        'exist',
+      );
     })
   });
 
@@ -531,14 +534,14 @@ describe('OrderDetailDialog', () => {
     mountOrdersRoute('/orders/101');
 
     cy.get('dialog').should(
-    'have.attr',
-    'open',
+      'have.attr',
+      'open',
     );
 
     cy.get('dialog').should(
-    'have.attr',
-    'aria-labelledby',
-    'order-detail-title',
+      'have.attr',
+      'aria-labelledby',
+      'order-detail-title',
     );
 
     cy.focused().should(

@@ -1,3 +1,5 @@
+import { loginAs } from '../support/e2eAuth';
+
 describe('Order lifecycle', () => {
   it('persists a created order through completion and refresh', () => {
     const uniqueIdentifier = `@e2e-${Date.now()}`;
@@ -9,7 +11,7 @@ describe('Order lifecycle', () => {
       '**/api/orders/*/status',
     ).as('updateStatus');
 
-    cy.visit('/');
+    loginAs('ORDER_OPERATOR');
 
     cy.contains('.summary-card', 'Open Orders')
       .find('strong')
@@ -238,6 +240,38 @@ describe('Order lifecycle', () => {
         cy.get(
           '[aria-label="Order lifecycle actions"]',
         ).should('not.exist');
+
+        cy.contains('button', 'Close').click();
       });
+
+    cy.location('pathname').should('eq', '/');
+
+    cy.intercept(
+      'POST',
+      '**/api/auth/logout',
+    ).as('logout');
+
+    cy.contains('button', 'Sign out').click();
+
+    cy.wait('@logout')
+      .its('response.statusCode')
+      .should('eq', 204);
+
+    cy.contains(
+      'button',
+      'Sign in',
+    ).should('be.visible');
+
+    cy.contains('Orders content').should(
+      'not.exist',
+    );
+
+    cy.request({
+      method: 'GET',
+      url: '/api/auth/session',
+      failOnStatusCode: false,
+    })
+      .its('status')
+      .should('eq', 401);
   });
 });

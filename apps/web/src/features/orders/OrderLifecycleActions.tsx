@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAuthenticatedSession } from '../auth/AuthContext';
+import { hasPermission } from '../auth/permissions';
 
 import {
   OrderStatusConflictError,
@@ -37,6 +39,14 @@ export function OrderLifecycleActions({
   onStatusUpdated,
   onReloadRequested,
 }: OrderLifecycleActionsProps) {
+
+  const session = useAuthenticatedSession();
+
+  const canUpdateOrderStatus = hasPermission(
+    session.user.role,
+    'ORDER_STATUS_UPDATE',
+  );
+
   const [mutationState, setMutationState] =
     useState<StatusMutationState>('idle');
 
@@ -63,6 +73,7 @@ export function OrderLifecycleActions({
       const updatedOrder = await updateOrderStatus(
         orderId,
         nextStatus,
+        session.csrfToken,
       );
 
       setIsCancellationConfirmationOpen(false);
@@ -95,8 +106,9 @@ export function OrderLifecycleActions({
   }
 
   if (
-    !nextProgressStatus &&
-    mutationState !== 'success'
+    !canUpdateOrderStatus ||
+    (!nextProgressStatus &&
+      mutationState !== 'success')
   ) {
     return null;
   }

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { AuthenticatedTestProvider } from '../../support/AuthenticatedTestProvider';
+import type { UserRole } from '../../../src/features/auth/auth.types';
 
 import { OrderLifecycleActions } from '../../../src/features/orders/OrderLifecycleActions';
 import type {
@@ -8,6 +10,7 @@ import type {
 
 type LifecycleHarnessProps = {
   initialStatus: OrderStatus;
+  role?: UserRole;
   onStatusUpdated?: (
     updatedOrder: UpdateOrderStatusResponse,
   ) => void;
@@ -16,22 +19,26 @@ type LifecycleHarnessProps = {
 
 function LifecycleHarness({
   initialStatus,
+  role = 'ADMIN',
   onStatusUpdated = () => undefined,
   onReloadRequested = () => undefined,
 }: LifecycleHarnessProps) {
   const [status, setStatus] =
     useState(initialStatus);
 
+
   return (
-    <OrderLifecycleActions
-      orderId={101}
-      status={status}
-      onStatusUpdated={(updatedOrder) => {
-        setStatus(updatedOrder.status);
-        onStatusUpdated(updatedOrder);
-      }}
-      onReloadRequested={onReloadRequested}
-    />
+    <AuthenticatedTestProvider role={role}>
+      <OrderLifecycleActions
+        orderId={101}
+        status={status}
+        onStatusUpdated={(updatedOrder) => {
+          setStatus(updatedOrder.status);
+          onStatusUpdated(updatedOrder);
+        }}
+        onReloadRequested={onReloadRequested}
+      />
+    </AuthenticatedTestProvider>
   );
 }
 
@@ -67,11 +74,16 @@ describe('OrderLifecycleActions', () => {
       'be.disabled',
     );
 
-    cy.wait('@updateStatus')
-      .its('request.body')
-      .should('deep.equal', {
+    cy.wait('@updateStatus').then(({ request }) => {
+      expect(request.headers).to.have.property(
+        'x-csrf-token',
+        'test-csrf-token',
+      );
+
+      expect(request.body).to.deep.equal({
         status: 'IN_PROGRESS',
       });
+    });
 
     cy.get('@updateStatus.all').should(
       'have.length',
@@ -262,8 +274,8 @@ describe('OrderLifecycleActions', () => {
     cy.wait('@updateStatus');
 
     cy.get('@updateStatus.all').should(
-        'have.length', 
-        2,
+      'have.length',
+      2,
     );
 
     cy.contains(
@@ -313,6 +325,52 @@ describe('OrderLifecycleActions', () => {
       'have.been.calledOnce',
     );
   });
+
+  const statusUpdateRoles: readonly UserRole[] = [
+    'ADMIN',
+    'ORDER_OPERATOR',
+    'FULFILLMENT_OPERATOR',
+  ];
+
+  for (const role of statusUpdateRoles) {
+    it(`shows lifecycle actions for ${role}`, () => {
+      cy.mount(
+        <LifecycleHarness
+          initialStatus="NEW"
+          role={role}
+        />,
+      );
+
+      cy.contains(
+        'button',
+        'Start processing',
+      ).should('be.visible');
+
+      cy.contains(
+        'button',
+        'Cancel order',
+      ).should('be.visible');
+    });
+  }
+
+  it('hides lifecycle actions for PAYMENT_OPERATOR', () => {
+    cy.mount(
+      <LifecycleHarness
+        initialStatus="NEW"
+        role="PAYMENT_OPERATOR"
+      />,
+    );
+
+    cy.get(
+      '[aria-label="Order lifecycle actions"]',
+    ).should('not.exist');
+
+    cy.contains(
+      'button',
+      'Start processing',
+    ).should('not.exist');
+  });
+
 
   it('does not expose actions for terminal statuses', () => {
     cy.mount(

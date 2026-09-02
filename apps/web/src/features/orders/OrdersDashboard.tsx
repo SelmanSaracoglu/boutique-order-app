@@ -8,6 +8,9 @@ import {
 } from './ordersApi';
 import './orders-dashboard.css';
 
+import { useAuthenticatedSession } from '../auth/AuthContext';
+import { hasPermission } from '../auth/permissions';
+
 type OrderFilter =
   | 'open'
   | 'all'
@@ -71,11 +74,11 @@ function isToday(createdAt: string) {
 
   return (
     createdDate.getFullYear() ===
-      today.getFullYear() &&
+    today.getFullYear() &&
     createdDate.getMonth() ===
-      today.getMonth() &&
+    today.getMonth() &&
     createdDate.getDate() ===
-      today.getDate()
+    today.getDate()
   );
 }
 
@@ -84,26 +87,34 @@ export function OrdersDashboard({
   loadState,
   onRetryLoadOrders,
 }: OrdersDashboardProps) {
-    const [filter, setFilter] =
-      useState<OrderFilter>('open');
 
-    const filteredOrders = orders.filter(
-      (order) => matchesFilter(order, filter),
-    );
+  const session = useAuthenticatedSession();
 
-    const openOrders = orders.filter(
-      (order) =>
-        order.status === 'NEW' ||
-        order.status === 'IN_PROGRESS',
-    ).length;
+  const canCreateOrder = hasPermission(
+    session.user.role,
+    'ORDER_CREATE',
+  );
 
-    const completedOrders = orders.filter(
-      (order) => order.status === 'COMPLETED',
-    ).length;
+  const [filter, setFilter] =
+    useState<OrderFilter>('open');
 
-    const todaysOrders = orders.filter((order) =>
-      isToday(order.createdAt),
-    ).length;
+  const filteredOrders = orders.filter(
+    (order) => matchesFilter(order, filter),
+  );
+
+  const openOrders = orders.filter(
+    (order) =>
+      order.status === 'NEW' ||
+      order.status === 'IN_PROGRESS',
+  ).length;
+
+  const completedOrders = orders.filter(
+    (order) => order.status === 'COMPLETED',
+  ).length;
+
+  const todaysOrders = orders.filter((order) =>
+    isToday(order.createdAt),
+  ).length;
 
   return (
     <main className="page">
@@ -119,12 +130,14 @@ export function OrdersDashboard({
             </p>
           </div>
 
-          <Link
-            className="orders-dashboard__new-order"
-            to="/orders/new"
-          >
-            New Order
-          </Link>
+          {canCreateOrder && (
+            <Link
+              className="orders-dashboard__new-order"
+              to="/orders/new"
+            >
+              New Order
+            </Link>
+          )}
         </header>
 
         {loadState === 'ready' && (
@@ -242,16 +255,20 @@ export function OrdersDashboard({
             orders.length === 0 && (
               <div className="orders-state">
                 <strong>No orders yet</strong>
+
                 <span>
-                  Create the first customer order
-                  to get started.
+                  {canCreateOrder
+                    ? 'Create the first customer order to get started.'
+                    : 'There are currently no customer orders to review.'}
                 </span>
-                <Link
-                  className="orders-empty-action"
-                  to="/orders/new"
-                >
-                  New Order
-                </Link>
+                {canCreateOrder && (
+                  <Link
+                    className="orders-empty-action"
+                    to="/orders/new"
+                  >
+                    New Order
+                  </Link>
+                )}
               </div>
             )}
 

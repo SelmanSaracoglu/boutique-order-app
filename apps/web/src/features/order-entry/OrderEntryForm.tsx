@@ -4,7 +4,7 @@ import {
   type SubmitEvent,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import { useAuthenticatedSession } from '../auth/AuthContext';
 import './order-entry.css';
 
 import { CustomerSourceFields } from './CustomerSourceFields';
@@ -45,6 +45,8 @@ const initialOrderEntry: OrderEntryFormValues = {
 
 export function OrderEntryForm() {
   const navigate = useNavigate();
+
+  const session = useAuthenticatedSession();
 
   const [orderEntry, setOrderEntry] =
     useState<OrderEntryFormValues>(initialOrderEntry);
@@ -88,7 +90,10 @@ export function OrderEntryForm() {
     setIsSubmitting(true);
 
     try {
-      await createOrder(request);
+      await createOrder(
+        request,
+        session.csrfToken
+      );
 
       navigate('/');
     } catch {

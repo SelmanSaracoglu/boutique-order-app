@@ -4,22 +4,26 @@ import {
   Routes,
 } from 'react-router-dom';
 
+import { AuthenticatedTestProvider } from '../../support/AuthenticatedTestProvider';
+
 import { OrderEntryForm } from '../../../src/features/order-entry/OrderEntryForm';
 
 function mountOrderEntryForm() {
   cy.mount(
-    <MemoryRouter initialEntries={['/orders/new']}>
-      <Routes>
-        <Route
-          path="/orders/new"
-          element={<OrderEntryForm />}
-        />
-        <Route
-          path="/"
-          element={<h1>Orders Dashboard</h1>}
-        />
-      </Routes>
-    </MemoryRouter>,
+    <AuthenticatedTestProvider>
+      <MemoryRouter initialEntries={['/orders/new']}>
+        <Routes>
+          <Route
+            path="/orders/new"
+            element={<OrderEntryForm />}
+          />
+          <Route
+            path="/"
+            element={<h1>Orders Dashboard</h1>}
+          />
+        </Routes>
+      </MemoryRouter>,
+    </AuthenticatedTestProvider>
   );
 }
 
@@ -225,6 +229,10 @@ describe('OrderEntryForm', () => {
 
     cy.wait('@createOrder').then(
       ({ request }) => {
+        expect(request.headers).to.have.property(
+          'x-csrf-token',
+          'test-csrf-token',
+        );
         expect(request.body).to.deep.equal({
           orderSource: 'instagram',
           customerIdentifier:
