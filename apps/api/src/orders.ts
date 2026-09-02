@@ -1,20 +1,24 @@
 import { Router } from 'express'
 import { pool } from './db.js'
 import { requireCsrf } from './auth/requireCsrf.js'
+import { requirePermission } from './auth/requirePermission.js'
+
 import {
   canTransitionOrderStatus,
   type OrderStatus,
 } from './orderLifecycle.js'
+
 import {
   createOrderSchema,
   orderIdSchema,
   updateOrderStatusSchema,
 } from './orderValidation.js'
+
 import type { PoolClient } from 'pg'
 
 export const ordersRouter = Router()
 
-ordersRouter.post('/', requireCsrf, async (request, response) => {
+ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (request, response) => {
   const validationResult = createOrderSchema.safeParse(request.body)
 
   if (!validationResult.success) {
@@ -163,9 +167,10 @@ ordersRouter.post('/', requireCsrf, async (request, response) => {
   } finally {
     client?.release()
   }
-})
+},
+)
 
-ordersRouter.patch('/:orderId/status', requireCsrf, async (request, response) => {
+ordersRouter.patch('/:orderId/status', requirePermission('ORDER_STATUS_UPDATE'), requireCsrf, async (request, response) => {
   const orderIdValidationResult = orderIdSchema.safeParse(
     request.params.orderId,
   )
@@ -305,9 +310,10 @@ ordersRouter.patch('/:orderId/status', requireCsrf, async (request, response) =>
   } finally {
     client?.release()
   }
-})
+},
+)
 
-ordersRouter.get('/', async (_request, response) => {
+ordersRouter.get('/', requirePermission('ORDER_READ'), async (_request, response) => {
   try {
     const result = await pool.query(
       `
@@ -352,9 +358,10 @@ ordersRouter.get('/', async (_request, response) => {
       },
     })
   }
-})
+},
+)
 
-ordersRouter.get('/:orderId', async (request, response) => {
+ordersRouter.get('/:orderId', requirePermission('ORDER_READ'), async (request, response) => {
   const validationResult = orderIdSchema.safeParse(request.params.orderId)
 
   if (!validationResult.success) {
@@ -455,4 +462,5 @@ ordersRouter.get('/:orderId', async (request, response) => {
       },
     })
   }
-})
+},
+)

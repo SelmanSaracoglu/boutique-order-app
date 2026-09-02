@@ -189,7 +189,17 @@ status: ACTIVE
 session_version: 1
 ```
 
-User provisioning establishes the identity and credential foundation only. HTTP authentication, sessions, and endpoint authorization are introduced in later Epic 5 sprints.
+The API authenticates users with local credentials and stores sessions in PostgreSQL. Session cookies are `HttpOnly` and use `SameSite=Strict`.
+
+State-changing authenticated requests require the CSRF token issued during login.
+
+Order permissions are enforced server-side:
+
+| Operation            | `ADMIN` | `ORDER_OPERATOR` | `PAYMENT_OPERATOR` | `FULFILLMENT_OPERATOR` |
+| -------------------- | ------- | ---------------- | ------------------ | ---------------------- |
+| List and view orders | Allowed | Allowed          | Allowed            | Allowed                |
+| Create orders        | Allowed | Allowed          | Forbidden          | Forbidden              |
+| Update order status  | Allowed | Allowed          | Forbidden          | Allowed                |
 
 ## Development
 
@@ -216,13 +226,19 @@ The default API port is:
 The current API exposes:
 
 ```text
+POST  /api/auth/login
+GET   /api/auth/session
+POST  /api/auth/logout
 POST  /api/orders
 GET   /api/orders
 GET   /api/orders/:orderId
 PATCH /api/orders/:orderId/status
 ```
 
-The order endpoints remain unauthenticated until the authentication and authorization sprints of Epic 5 are completed.
+All order endpoints require an authenticated session.
+
+- Requests without a valid session receive `401 Unauthorized`;
+- authenticated users without the required permission receive `403 Forbidden`.
 
 ### Create Order
 
