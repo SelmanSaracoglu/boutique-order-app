@@ -28,6 +28,8 @@ The application currently supports:
 - secure server-side logout,
 - server-authoritative role-based access control,
 - role-aware frontend actions and protected routes,
+- customer payment reporting and reservation,
+- payment confirmation with preserved payment methods,
 - automated API integration testing against PostgreSQL,
 - authenticated full-stack browser testing.
 
@@ -256,11 +258,13 @@ Order mutations require the CSRF token returned by login or session restoration.
 
 Order permissions are enforced server-side.
 
-| Operation            | `ADMIN` | `ORDER_OPERATOR` | `PAYMENT_OPERATOR` | `FULFILLMENT_OPERATOR` |
-| -------------------- | ------- | ---------------- | ------------------ | ---------------------- |
-| List and view orders | Allowed | Allowed          | Allowed            | Allowed                |
-| Create orders        | Allowed | Allowed          | Forbidden          | Forbidden              |
-| Update order status  | Allowed | Allowed          | Forbidden          | Allowed                |
+| Operation               | `ADMIN`   | `ORDER_OPERATOR` | `PAYMENT_OPERATOR` | `FULFILLMENT_OPERATOR` |
+| ----------------------- | --------- | ---------------- | ------------------ | ---------------------- |
+| List and view orders    | Allowed   | Allowed          | Allowed            | Allowed                |
+| Create orders           | Allowed   | Allowed          | Forbidden          | Forbidden              |
+| Update order status     | Allowed   | Allowed          | Forbidden          | Allowed                |
+| Report customer payment | Forbidden | Allowed          | Forbidden          | Forbidden              |
+| Confirm payment         | Forbidden | Forbidden        | Allowed            | Forbidden              |
 
 The frontend reflects this matrix by hiding unavailable actions and redirecting users away from protected routes.
 
@@ -505,6 +509,7 @@ The component suite runs headlessly in Google Chrome and verifies:
 - Dashboard behaviour,
 - Order Detail behaviour,
 - order lifecycle actions.
+- payment reporting and confirmation actions.
 
 ### Full-Stack E2E
 

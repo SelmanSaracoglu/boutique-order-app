@@ -17,8 +17,11 @@ import {
   type UpdateOrderStatusResponse,
   type PaymentMethod,
   type PaymentStatus,
-  type ReportPaymentResponse,
+  type PaymentUpdateResponse,
 } from './ordersApi';
+
+import { PaymentConfirmationActions } from './PaymentConfirmationActions';
+
 import './order-detail-dialog.css';
 
 type DetailLoadState =
@@ -83,7 +86,7 @@ export function OrderDetailDialog() {
 
   const {
     onOrderStatusUpdated,
-    onPaymentReported
+    onPaymentUpdated
   } = useOutletContext<OrdersOutletContext>();
 
   const dialogRef =
@@ -212,8 +215,8 @@ export function OrderDetailDialog() {
     onOrderStatusUpdated(updatedOrder);
   }
 
-  function handlePaymentReported(
-    updatedPayment: ReportPaymentResponse,
+  function handlePaymentUpdated(
+    updatedPayment: PaymentUpdateResponse,
   ) {
     setOrder((currentOrder) =>
       currentOrder
@@ -227,7 +230,7 @@ export function OrderDetailDialog() {
         : currentOrder,
     );
 
-    onPaymentReported(updatedPayment);
+    onPaymentUpdated(updatedPayment);
   }
 
   return (
@@ -404,7 +407,16 @@ export function OrderDetailDialog() {
                 orderStatus={order.status}
                 paymentStatus={order.paymentStatus}
                 paymentMethod={order.paymentMethod}
-                onPaymentReported={handlePaymentReported}
+                onPaymentReported={handlePaymentUpdated}
+                onReloadRequested={reloadOrder}
+              />
+
+              <PaymentConfirmationActions
+                orderId={order.id}
+                orderStatus={order.status}
+                paymentStatus={order.paymentStatus}
+                paymentMethod={order.paymentMethod}
+                onPaymentConfirmed={handlePaymentUpdated}
                 onReloadRequested={reloadOrder}
               />
 

@@ -15,7 +15,7 @@ const forbiddenResponse = {
 };
 
 describe('Authenticated order RBAC', () => {
-  it('keeps PAYMENT_OPERATOR read-only in the UI and API', () => {
+  it('allows PAYMENT_OPERATOR to confirm reported payments while restricting order mutations', () => {
     const uniqueIdentifier =
       `@rbac-e2e-${Date.now()}`;
 
@@ -48,6 +48,23 @@ describe('Authenticated order RBAC', () => {
           body: orderInput,
         }).then(({ body: createdOrder }) => {
           expect(createdOrder.status).to.equal('NEW');
+
+          cy.request({
+            method: 'POST',
+            url: `/api/orders/${createdOrder.id}/payment-report`,
+            headers: {
+              'x-csrf-token':
+                orderOperatorSession.csrfToken,
+            },
+            body: {
+              paymentMethod: 'BANK_TRANSFER',
+            },
+          })
+            .its('body')
+            .should('deep.include', {
+              paymentStatus: 'REPORTED',
+              paymentMethod: 'BANK_TRANSFER',
+            });
 
           cy.contains(
             'button',
@@ -100,8 +117,13 @@ describe('Authenticated order RBAC', () => {
 
                   cy.contains(
                     'button',
-                    'Start processing',
-                  ).should('not.exist');
+                    'Confirm payment',
+                  ).click();
+
+                  cy.contains(
+                    '[aria-label="Payment information"]',
+                    'Confirmed',
+                  ).should('exist');
 
                   cy.contains(
                     'button',
@@ -171,9 +193,17 @@ describe('Authenticated order RBAC', () => {
 
               cy.request<OrderDetail>(
                 `/api/orders/${createdOrder.id}`,
-              )
-                .its('body.status')
-                .should('eq', 'NEW');
+              ).then(({ body: order }) => {
+                expect(order.status).to.equal('NEW');
+
+                expect(order.paymentStatus).to.equal(
+                  'CONFIRMED',
+                );
+
+                expect(order.paymentMethod).to.equal(
+                  'BANK_TRANSFER',
+                );
+              });
 
               cy.request<OrderSummary[]>(
                 '/api/orders',

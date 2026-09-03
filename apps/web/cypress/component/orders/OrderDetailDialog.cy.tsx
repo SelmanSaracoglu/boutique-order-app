@@ -634,4 +634,80 @@ describe('OrderDetailDialog', () => {
       ).should('not.exist');
     });
   });
+
+  it('confirms payment and synchronizes the Detail with the Dashboard row', () => {
+    const reportedOrderSummary = {
+      ...orderSummaries[0],
+      paymentStatus: 'REPORTED',
+      paymentMethod: 'PAYPAL',
+    };
+
+    const reportedOrderDetail = {
+      ...orderDetail,
+      paymentStatus: 'REPORTED',
+      paymentMethod: 'PAYPAL',
+    };
+
+    cy.intercept('GET', '**/api/orders', {
+      statusCode: 200,
+      body: [reportedOrderSummary],
+    }).as('listReportedOrders');
+
+    cy.intercept('GET', '**/api/orders/101', {
+      statusCode: 200,
+      body: reportedOrderDetail,
+    }).as('getOrder');
+
+    cy.intercept(
+      'POST',
+      '**/api/orders/101/payment-confirmation',
+      {
+        statusCode: 200,
+        body: {
+          id: 101,
+          paymentStatus: 'CONFIRMED',
+          paymentMethod: 'PAYPAL',
+        },
+      },
+    ).as('confirmPayment');
+
+    mountOrdersRoute('/', 'PAYMENT_OPERATOR');
+
+    cy.wait('@listReportedOrders');
+
+    cy.contains('.order-row', '#101')
+      .should('contain.text', 'Reserved')
+      .and('contain.text', 'PayPal')
+      .contains('View')
+      .click();
+
+    cy.wait('@getOrder');
+
+    cy.get('dialog .order-detail').scrollTo('center');
+
+    cy.get(
+      'dialog [aria-label="Payment confirmation actions"]',
+    )
+      .contains('button', 'Confirm payment')
+      .click();
+
+    cy.wait('@confirmPayment').then(({ request }) => {
+      expect(request.headers).to.have.property(
+        'x-csrf-token',
+        'test-csrf-token',
+      );
+    });
+
+    cy.get(
+      'dialog [aria-label="Payment information"]',
+    )
+      .should('contain.text', 'Confirmed')
+      .and('contain.text', 'PayPal');
+
+    cy.contains('button', 'Close').click();
+
+    cy.contains('.order-row', '#101')
+      .should('contain.text', 'Confirmed')
+      .and('contain.text', 'PayPal');
+  });
 });

@@ -12,15 +12,15 @@ import {
   listOrders,
   type OrderSummary,
   type UpdateOrderStatusResponse,
-  type ReportPaymentResponse,
+  type PaymentUpdateResponse,
 } from './ordersApi';
 
 export type OrdersOutletContext = {
   onOrderStatusUpdated: (
     updatedOrder: UpdateOrderStatusResponse,
   ) => void;
-  onPaymentReported: (
-    reportedPayment: ReportPaymentResponse,
+  onPaymentUpdated: (
+    updatedPayment: PaymentUpdateResponse,
   ) => void;
 };
 
@@ -83,8 +83,8 @@ export function OrdersRouteLayout() {
     [],
   );
 
-  const handlePaymentReported = useCallback(
-    (updatedPayment: ReportPaymentResponse) => {
+  const handlePaymentUpdated = useCallback(
+    (updatedPayment: PaymentUpdateResponse) => {
       setOrders((currentOrders) =>
         currentOrders.map((order) =>
           order.id === updatedPayment.id
@@ -114,8 +114,8 @@ export function OrdersRouteLayout() {
         context={{
           onOrderStatusUpdated:
             handleOrderStatusUpdated,
-          onPaymentReported:
-            handlePaymentReported,
+          onPaymentUpdated:
+            handlePaymentUpdated,
         } satisfies OrdersOutletContext}
       />
     </>

@@ -45,6 +45,16 @@ export type ReportPaymentResponse = {
   paymentMethod: PaymentMethod;
 };
 
+export type ConfirmPaymentResponse = {
+  id: number;
+  paymentStatus: 'CONFIRMED';
+  paymentMethod: PaymentMethod;
+};
+
+export type PaymentUpdateResponse =
+  | ReportPaymentResponse
+  | ConfirmPaymentResponse;
+
 export type CreateOrderItemRequest = {
   supplierAlias: string;
   description: string;
@@ -123,6 +133,13 @@ export class PaymentReportConflictError extends Error {
   constructor() {
     super('Payment report is no longer available.');
     this.name = 'PaymentReportConflictError';
+  }
+}
+
+export class PaymentConfirmationConflictError extends Error {
+  constructor() {
+    super('Payment confirmation is no longer available.');
+    this.name = 'PaymentConfirmationConflictError';
   }
 }
 
@@ -237,4 +254,30 @@ export async function reportPayment(
   }
 
   return response.json() as Promise<ReportPaymentResponse>;
+}
+
+export async function confirmPayment(
+  orderId: number,
+  csrfToken: string,
+): Promise<ConfirmPaymentResponse> {
+  const response = await fetch(
+    `/api/orders/${orderId}/payment-confirmation`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        [CSRF_HEADER_NAME]: csrfToken,
+      },
+    },
+  );
+
+  if (response.status === 409) {
+    throw new PaymentConfirmationConflictError();
+  }
+
+  if (!response.ok) {
+    throw new Error('Unable to confirm payment.');
+  }
+
+  return response.json() as Promise<ConfirmPaymentResponse>;
 }

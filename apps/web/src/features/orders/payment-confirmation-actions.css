@@ -1,0 +1,84 @@
+.payment-confirmation {
+  display: flex;
+  padding: 18px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+
+.payment-confirmation__header h3 {
+  margin: 0;
+}
+
+.payment-confirmation__header p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+}
+
+.payment-confirmation__submit {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.payment-confirmation__submit:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.payment-confirmation__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.payment-confirmation__message {
+  align-self: stretch;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 9px;
+}
+
+.payment-confirmation__message--success {
+  color: #315d42;
+  background: #e0eee5;
+}
+
+.payment-confirmation__message--error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #7b3535;
+  background: #f1e2e2;
+}
+
+.payment-confirmation__reload {
+  flex: none;
+  padding: 7px 11px;
+  border: 1px solid currentcolor;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .payment-confirmation__submit {
+    width: 100%;
+  }
+
+  .payment-confirmation__message--error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

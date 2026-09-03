@@ -18,6 +18,12 @@ export type ReportedPayment = {
   paymentMethod: PaymentMethod
 }
 
+export type ConfirmedPayment = {
+  id: number
+  paymentStatus: 'CONFIRMED'
+  paymentMethod: PaymentMethod
+}
+
 type PaymentOrderRow = {
   id: number
   status: OrderStatus
@@ -29,6 +35,12 @@ type ReportedPaymentRow = {
   id: number
   payment_status: PaymentStatus
   payment_method: PaymentMethod
+}
+
+type ConfirmedPaymentRow = {
+  id: number
+  payment_status: 'CONFIRMED'
+  payment_method: PaymentMethod | null
 }
 
 export async function findPaymentOrderForUpdate(
@@ -92,6 +104,40 @@ export async function persistReportedPayment(
   if (!row) {
     throw new Error(
       'Payment report update returned no row',
+    )
+  }
+
+  return {
+    id: row.id,
+    paymentStatus: row.payment_status,
+    paymentMethod: row.payment_method,
+  }
+}
+
+export async function persistConfirmedPayment(
+  client: PoolClient,
+  orderId: number,
+): Promise<ConfirmedPayment> {
+  const result = await client.query(
+    `
+      UPDATE orders
+      SET payment_status = 'CONFIRMED'
+      WHERE id = $1
+      RETURNING
+        id,
+        payment_status,
+        payment_method
+    `,
+    [orderId],
+  )
+
+  const row = result.rows[0] as
+    | ConfirmedPaymentRow
+    | undefined
+
+  if (!row || !row.payment_method) {
+    throw new Error(
+      'Payment confirmation update returned an invalid row',
     )
   }
 
