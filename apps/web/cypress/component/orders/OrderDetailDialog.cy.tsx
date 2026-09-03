@@ -8,6 +8,7 @@ import {
 import { OrderDetailDialog } from '../../../src/features/orders/OrderDetailDialog';
 import { OrdersRouteLayout } from '../../../src/features/orders/OrdersRouteLayout';
 import { AuthenticatedTestProvider } from '../../support/AuthenticatedTestProvider';
+import type { UserRole } from '../../../src/features/auth/auth.types';
 
 const orderSummaries = [
   {
@@ -16,6 +17,8 @@ const orderSummaries = [
     customerName: 'New Customer',
     createdAt: '2026-08-23T08:00:00.000Z',
     status: 'NEW',
+    paymentStatus: 'AWAITING_PAYMENT',
+    paymentMethod: null,
     total: 85,
   },
 ];
@@ -27,6 +30,8 @@ const orderDetail = {
   customerName: 'New Customer',
   operationalNote: 'Call before shipping.',
   status: 'NEW',
+  paymentStatus: 'AWAITING_PAYMENT',
+  paymentMethod: null,
   createdAt: '2026-08-23T08:00:00.000Z',
   total: 85,
   items: [
@@ -71,9 +76,10 @@ function mountOrdersRoute(
         fromDashboard?: boolean;
       };
     } = '/',
+  role: UserRole = 'ADMIN',
 ) {
   cy.mount(
-    <AuthenticatedTestProvider>
+    <AuthenticatedTestProvider role={role}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route
@@ -550,5 +556,82 @@ describe('OrderDetailDialog', () => {
     );
 
     cy.wait('@getOrder');
+  });
+
+  it('reports payment and synchronizes the Detail with the Dashboard row', () => {
+    cy.intercept(
+      'GET',
+      '**/api/orders/101',
+      {
+        statusCode: 200,
+        body: orderDetail,
+      },
+    ).as('getOrder');
+
+    cy.intercept(
+      'POST',
+      '**/api/orders/101/payment-report',
+      {
+        statusCode: 200,
+        body: {
+          id: 101,
+          paymentStatus: 'REPORTED',
+          paymentMethod: 'BANK_TRANSFER',
+        },
+      },
+    ).as('reportPayment');
+
+    mountOrdersRoute('/', 'ORDER_OPERATOR');
+
+    cy.wait('@listOrders');
+
+    cy.contains('.order-row', '#101')
+      .contains('View')
+      .click();
+
+    cy.wait('@getOrder');
+
+    cy.get(
+      'dialog [aria-label="Payment information"]',
+    ).should('contain.text', 'Awaiting payment');
+
+    cy.get('dialog .order-detail').scrollTo('center');
+
+    cy.get(
+      'dialog [aria-label="Payment reporting actions"]',
+    ).within(() => {
+      cy.contains('label', 'Payment method')
+        .find('select')
+        .select('BANK_TRANSFER');
+
+      cy.contains(
+        'button',
+        'Report payment',
+      ).click();
+    });
+
+    cy.wait('@reportPayment').then(({ request }) => {
+      expect(request.headers).to.have.property(
+        'x-csrf-token',
+        'test-csrf-token',
+      );
+
+      expect(request.body).to.deep.equal({
+        paymentMethod: 'BANK_TRANSFER',
+      });
+    });
+
+    cy.get(
+      'dialog [aria-label="Payment information"]',
+    )
+      .should('contain.text', 'Reserved')
+      .and('contain.text', 'Bank transfer');
+
+    cy.get('dialog').within(() => {
+      cy.contains(
+        'button',
+        'Report payment',
+      ).should('not.exist');
+    });
   });
 });

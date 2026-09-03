@@ -35,6 +35,16 @@ export type UpdateOrderStatusResponse = {
   status: OrderStatus;
 };
 
+export type ReportPaymentRequest = {
+  paymentMethod: PaymentMethod;
+};
+
+export type ReportPaymentResponse = {
+  id: number;
+  paymentStatus: 'REPORTED';
+  paymentMethod: PaymentMethod;
+};
+
 export type CreateOrderItemRequest = {
   supplierAlias: string;
   description: string;
@@ -106,6 +116,13 @@ export class OrderStatusConflictError extends Error {
   constructor() {
     super('Order status transition is no longer available.');
     this.name = 'OrderStatusConflictError';
+  }
+}
+
+export class PaymentReportConflictError extends Error {
+  constructor() {
+    super('Payment report is no longer available.');
+    this.name = 'PaymentReportConflictError';
   }
 }
 
@@ -189,3 +206,35 @@ export async function updateOrderStatus(
   return response.json() as Promise<UpdateOrderStatusResponse>;
 }
 
+export async function reportPayment(
+  orderId: number,
+  paymentMethod: PaymentMethod,
+  csrfToken: string,
+): Promise<ReportPaymentResponse> {
+  const requestBody: ReportPaymentRequest = {
+    paymentMethod,
+  };
+
+  const response = await fetch(
+    `/api/orders/${orderId}/payment-report`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        [CSRF_HEADER_NAME]: csrfToken,
+      },
+      body: JSON.stringify(requestBody),
+    },
+  );
+
+  if (response.status === 409) {
+    throw new PaymentReportConflictError();
+  }
+
+  if (!response.ok) {
+    throw new Error('Unable to report payment.');
+  }
+
+  return response.json() as Promise<ReportPaymentResponse>;
+}

@@ -1,20 +1,30 @@
 import type { UserRole } from './auth.types';
 
-export const ORDER_PERMISSIONS = [
+export const PERMISSIONS = [
   'ORDER_READ',
   'ORDER_CREATE',
   'ORDER_STATUS_UPDATE',
+  'PAYMENT_REPORT',
 ] as const;
 
 export type Permission =
-  (typeof ORDER_PERMISSIONS)[number];
+  (typeof PERMISSIONS)[number];
 
 const ROLE_PERMISSIONS: Record<
   UserRole,
   readonly Permission[]
 > = {
-  ADMIN: ORDER_PERMISSIONS,
-  ORDER_OPERATOR: ORDER_PERMISSIONS,
+  ADMIN: [
+    'ORDER_READ',
+    'ORDER_CREATE',
+    'ORDER_STATUS_UPDATE',
+  ],
+  ORDER_OPERATOR: [
+    'ORDER_READ',
+    'ORDER_CREATE',
+    'ORDER_STATUS_UPDATE',
+    'PAYMENT_REPORT',
+  ],
   PAYMENT_OPERATOR: ['ORDER_READ'],
   FULFILLMENT_OPERATOR: [
     'ORDER_READ',

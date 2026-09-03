@@ -16,6 +16,8 @@ const orders = [
     customerName: 'Cancelled Customer',
     createdAt: '2026-08-23T09:00:00.000Z',
     status: 'CANCELLED',
+    paymentStatus: 'AWAITING_PAYMENT',
+    paymentMethod: null,
     total: 25,
   },
   {
@@ -24,6 +26,8 @@ const orders = [
     customerName: 'Completed Customer',
     createdAt: '2026-08-22T12:00:00.000Z',
     status: 'COMPLETED',
+    paymentStatus: 'CONFIRMED',
+    paymentMethod: 'BANK_TRANSFER',
     total: 79.9,
   },
   {
@@ -31,6 +35,8 @@ const orders = [
     customerIdentifier: '+49 170 1234567',
     createdAt: '2026-08-23T08:30:00.000Z',
     status: 'IN_PROGRESS',
+    paymentStatus: 'REPORTED',
+    paymentMethod: 'PAYPAL',
     total: 39.8,
   },
   {
@@ -39,6 +45,8 @@ const orders = [
     customerName: 'New Customer',
     createdAt: '2026-08-23T08:00:00.000Z',
     status: 'NEW',
+    paymentStatus: 'AWAITING_PAYMENT',
+    paymentMethod: null,
     total: 49.9,
   },
 ];
@@ -105,9 +113,18 @@ describe('OrdersDashboard', () => {
       'be.visible',
     );
 
+    cy.contains('.order-row', '#101').should(
+      'contain.text',
+      'Awaiting payment',
+    );
+
     cy.contains('.order-row', '#102').should(
       'be.visible',
     );
+
+    cy.contains('.order-row', '#102')
+      .should('contain.text', 'Reserved')
+      .and('contain.text', 'PayPal');
 
     cy.contains('.order-row', '#103').should(
       'not.exist',
@@ -341,51 +358,51 @@ describe('OrdersDashboard', () => {
   });
 
   const orderCreationRoles: readonly UserRole[] = [
-  'ADMIN',
-  'ORDER_OPERATOR',
-];
+    'ADMIN',
+    'ORDER_OPERATOR',
+  ];
 
-for (const role of orderCreationRoles) {
-  it(`shows order creation actions for ${role}`, () => {
-    cy.intercept('GET', '**/api/orders', {
-      statusCode: 200,
-      body: [],
-    }).as('listOrders');
+  for (const role of orderCreationRoles) {
+    it(`shows order creation actions for ${role}`, () => {
+      cy.intercept('GET', '**/api/orders', {
+        statusCode: 200,
+        body: [],
+      }).as('listOrders');
 
-    mountDashboard(role);
+      mountDashboard(role);
 
-    cy.wait('@listOrders');
+      cy.wait('@listOrders');
 
-    cy.get('a[href="/orders/new"]').should(
-      'have.length',
-      2,
-    );
-  });
-}
+      cy.get('a[href="/orders/new"]').should(
+        'have.length',
+        2,
+      );
+    });
+  }
 
-const readOnlyCreationRoles: readonly UserRole[] = [
-  'PAYMENT_OPERATOR',
-  'FULFILLMENT_OPERATOR',
-];
+  const readOnlyCreationRoles: readonly UserRole[] = [
+    'PAYMENT_OPERATOR',
+    'FULFILLMENT_OPERATOR',
+  ];
 
-for (const role of readOnlyCreationRoles) {
-  it(`hides order creation actions for ${role}`, () => {
-    cy.intercept('GET', '**/api/orders', {
-      statusCode: 200,
-      body: [],
-    }).as('listOrders');
+  for (const role of readOnlyCreationRoles) {
+    it(`hides order creation actions for ${role}`, () => {
+      cy.intercept('GET', '**/api/orders', {
+        statusCode: 200,
+        body: [],
+      }).as('listOrders');
 
-    mountDashboard(role);
+      mountDashboard(role);
 
-    cy.wait('@listOrders');
+      cy.wait('@listOrders');
 
-    cy.get('a[href="/orders/new"]').should(
-      'not.exist',
-    );
+      cy.get('a[href="/orders/new"]').should(
+        'not.exist',
+      );
 
-    cy.contains(
-      'There are currently no customer orders to review.',
-    ).should('be.visible');
-  });
-}
+      cy.contains(
+        'There are currently no customer orders to review.',
+      ).should('be.visible');
+    });
+  }
 });

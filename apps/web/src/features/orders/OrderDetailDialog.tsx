@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 
 import { OrderLifecycleActions } from './OrderLifecycleActions';
+import { PaymentReportingActions } from './PaymentReportingActions';
 import type { OrdersOutletContext } from './OrdersRouteLayout';
 import {
   getOrder,
@@ -14,6 +15,9 @@ import {
   type OrderDetail,
   type OrderStatus,
   type UpdateOrderStatusResponse,
+  type PaymentMethod,
+  type PaymentStatus,
+  type ReportPaymentResponse,
 } from './ordersApi';
 import './order-detail-dialog.css';
 
@@ -32,6 +36,23 @@ const statusLabels: Record<OrderStatus, string> = {
   IN_PROGRESS: 'In progress',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+};
+
+const paymentStatusLabels: Record<
+  PaymentStatus,
+  string
+> = {
+  AWAITING_PAYMENT: 'Awaiting payment',
+  REPORTED: 'Reserved',
+  CONFIRMED: 'Confirmed',
+};
+
+const paymentMethodLabels: Record<
+  PaymentMethod,
+  string
+> = {
+  BANK_TRANSFER: 'Bank transfer',
+  PAYPAL: 'PayPal',
 };
 
 const orderSourceLabels = {
@@ -60,8 +81,10 @@ export function OrderDetailDialog() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { onOrderStatusUpdated } =
-  useOutletContext<OrdersOutletContext>();
+  const {
+    onOrderStatusUpdated,
+    onPaymentReported
+  } = useOutletContext<OrdersOutletContext>();
 
   const dialogRef =
     useRef<HTMLDialogElement>(null);
@@ -180,13 +203,31 @@ export function OrderDetailDialog() {
     setOrder((currentOrder) =>
       currentOrder
         ? {
-            ...currentOrder,
-            status: updatedOrder.status,
-          }
+          ...currentOrder,
+          status: updatedOrder.status,
+        }
         : currentOrder,
     );
 
     onOrderStatusUpdated(updatedOrder);
+  }
+
+  function handlePaymentReported(
+    updatedPayment: ReportPaymentResponse,
+  ) {
+    setOrder((currentOrder) =>
+      currentOrder
+        ? {
+          ...currentOrder,
+          paymentStatus:
+            updatedPayment.paymentStatus,
+          paymentMethod:
+            updatedPayment.paymentMethod,
+        }
+        : currentOrder,
+    );
+
+    onPaymentReported(updatedPayment);
   }
 
   return (
@@ -279,7 +320,7 @@ export function OrderDetailDialog() {
               <button
                 type="button"
                 className="order-detail__retry"
-                onClick={ reloadOrder }
+                onClick={reloadOrder}
               >
                 Try again
               </button>
@@ -315,7 +356,7 @@ export function OrderDetailDialog() {
                   <strong>
                     {
                       orderSourceLabels[
-                        order.orderSource
+                      order.orderSource
                       ]
                     }
                   </strong>
@@ -331,12 +372,48 @@ export function OrderDetailDialog() {
                 </div>
               </section>
 
+              <section
+                className="order-detail__section"
+                aria-label="Payment information"
+              >
+                <h3>Payment</h3>
+
+                <dl className="order-detail__fields">
+                  <dt>Status</dt>
+                  <dd>
+                    {paymentStatusLabels[order.paymentStatus]}
+                  </dd>
+
+                  {order.paymentMethod && (
+                    <>
+                      <dt>Method</dt>
+                      <dd>
+                        {
+                          paymentMethodLabels[
+                          order.paymentMethod
+                          ]
+                        }
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              </section>
+
+              <PaymentReportingActions
+                orderId={order.id}
+                orderStatus={order.status}
+                paymentStatus={order.paymentStatus}
+                paymentMethod={order.paymentMethod}
+                onPaymentReported={handlePaymentReported}
+                onReloadRequested={reloadOrder}
+              />
+
               <OrderLifecycleActions
-                  orderId={order.id}
-                  status={order.status}
-                  onStatusUpdated={handleOrderStatusUpdated}
-                  onReloadRequested={reloadOrder}
-                />
+                orderId={order.id}
+                status={order.status}
+                onStatusUpdated={handleOrderStatusUpdated}
+                onReloadRequested={reloadOrder}
+              />
 
               <section className="order-detail__section">
                 <h3>Customer</h3>

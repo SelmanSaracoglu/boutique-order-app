@@ -6,7 +6,7 @@ import {
 } from './auth.types';
 import {
   hasPermission,
-  ORDER_PERMISSIONS,
+  PERMISSIONS,
   type Permission,
 } from './permissions';
 
@@ -23,6 +23,7 @@ const EXPECTED_PERMISSIONS: Record<
     'ORDER_READ',
     'ORDER_CREATE',
     'ORDER_STATUS_UPDATE',
+    'PAYMENT_REPORT',
   ],
   PAYMENT_OPERATOR: ['ORDER_READ'],
   FULFILLMENT_OPERATOR: [
@@ -34,7 +35,7 @@ const EXPECTED_PERMISSIONS: Record<
 describe('hasPermission', () => {
   it('matches the order permission matrix for every role', () => {
     for (const role of USER_ROLES) {
-      for (const permission of ORDER_PERMISSIONS) {
+      for (const permission of PERMISSIONS) {
         const expected =
           EXPECTED_PERMISSIONS[role].includes(
             permission,

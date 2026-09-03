@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import {
   type OrderStatus,
   type OrderSummary,
+  type PaymentMethod,
+  type PaymentStatus,
 } from './ordersApi';
 import './orders-dashboard.css';
 
@@ -32,6 +34,23 @@ const statusLabels: Record<OrderStatus, string> = {
   IN_PROGRESS: 'In progress',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+};
+
+const paymentStatusLabels: Record<
+  PaymentStatus,
+  string
+> = {
+  AWAITING_PAYMENT: 'Awaiting payment',
+  REPORTED: 'Reserved',
+  CONFIRMED: 'Confirmed',
+};
+
+const paymentMethodLabels: Record<
+  PaymentMethod,
+  string
+> = {
+  BANK_TRANSFER: 'Bank transfer',
+  PAYPAL: 'PayPal',
 };
 
 const currencyFormatter = new Intl.NumberFormat(
@@ -294,6 +313,7 @@ export function OrdersDashboard({
                   <span>Customer</span>
                   <span>Created</span>
                   <span>Total</span>
+                  <span>Payment</span>
                   <span>Status</span>
                   <span>Actions</span>
                 </div>
@@ -346,6 +366,27 @@ export function OrdersDashboard({
                         )}
                       </strong>
                     </div>
+
+                    <div className="order-row__payment">
+                      <span className="order-row__mobile-label">
+                        Payment
+                      </span>
+
+                      <span
+                        className={`payment-status payment-status--${order.paymentStatus
+                          .toLowerCase()
+                          .replaceAll('_', '-')}`}
+                      >
+                        {paymentStatusLabels[order.paymentStatus]}
+                      </span>
+
+                      {order.paymentMethod && (
+                        <span className="order-row__payment-method">
+                          {paymentMethodLabels[order.paymentMethod]}
+                        </span>
+                      )}
+                    </div>
+
 
                     <div>
                       <span className="order-row__mobile-label">
