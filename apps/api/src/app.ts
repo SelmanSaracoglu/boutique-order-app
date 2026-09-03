@@ -1,6 +1,7 @@
 import express, { type ErrorRequestHandler } from 'express'
 import { ordersRouter } from './orders.js'
 import { authRouter } from './auth/authRouter.js'
+import { paymentRouter } from './payments/paymentRouter.js'
 import { sessionMiddleware } from './auth/session.js'
 import { requireAuthentication } from './auth/requireAuthentication.js'
 
@@ -13,6 +14,7 @@ app.use('/api/auth', authRouter)
 app.use(
   '/api/orders',
   requireAuthentication,
+  paymentRouter,
   ordersRouter,
 )
 

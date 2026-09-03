@@ -12,11 +12,20 @@ const rolePermissionCases: Array<{
 }> = [
   {
     role: 'ADMIN',
-    allowedPermissions: PERMISSIONS,
+    allowedPermissions: [
+      'ORDER_READ',
+      'ORDER_CREATE',
+      'ORDER_STATUS_UPDATE',
+    ],
   },
   {
     role: 'ORDER_OPERATOR',
-    allowedPermissions: PERMISSIONS,
+    allowedPermissions: [
+      'ORDER_READ',
+      'ORDER_CREATE',
+      'ORDER_STATUS_UPDATE',
+      'PAYMENT_REPORT',
+    ],
   },
   {
     role: 'PAYMENT_OPERATOR',
