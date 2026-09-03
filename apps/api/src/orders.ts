@@ -60,6 +60,8 @@ ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (re
           customer_name,
           operational_note,
           status,
+          payment_status,
+          payment_method,
           created_at
       `,
       [
@@ -145,6 +147,8 @@ ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (re
         ? { operationalNote: order.operational_note }
         : {}),
       status: order.status,
+      paymentStatus: order.payment_status,
+      paymentMethod: order.payment_method,
       createdAt: order.created_at.toISOString(),
       items: savedItems,
     })
@@ -323,6 +327,8 @@ ordersRouter.get('/', requirePermission('ORDER_READ'), async (_request, response
           o.customer_name,
           o.created_at,
           o.status,
+          o.payment_status,
+          o.payment_method,
           SUM(oi.quantity * oi.unit_price) AS total
         FROM orders o
         JOIN order_items oi ON oi.order_id = o.id
@@ -331,7 +337,9 @@ ordersRouter.get('/', requirePermission('ORDER_READ'), async (_request, response
           o.customer_identifier,
           o.customer_name,
           o.created_at,
-          o.status
+          o.status,
+          o.payment_status,
+          o.payment_method
         ORDER BY o.created_at DESC
       `,
     )
@@ -344,6 +352,8 @@ ordersRouter.get('/', requirePermission('ORDER_READ'), async (_request, response
         : {}),
       createdAt: order.created_at.toISOString(),
       status: order.status,
+      paymentStatus: order.payment_status,
+      paymentMethod: order.payment_method,
       total: Number(order.total),
     }))
 
@@ -385,6 +395,8 @@ ordersRouter.get('/:orderId', requirePermission('ORDER_READ'), async (request, r
           o.customer_name,
           o.operational_note,
           o.status,
+          o.payment_status,
+          o.payment_method,
           o.created_at,
           (
           SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0)
@@ -448,6 +460,8 @@ ordersRouter.get('/:orderId', requirePermission('ORDER_READ'), async (request, r
         ? { operationalNote: order.operational_note }
         : {}),
       status: order.status,
+      paymentStatus: order.payment_status,
+      paymentMethod: order.payment_method,
       createdAt: order.created_at.toISOString(),
       items,
       total: Number(order.total),

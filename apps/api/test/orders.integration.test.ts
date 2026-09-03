@@ -53,6 +53,8 @@ describe('Orders API', () => {
     expect(response.status).toBe(201)
     expect(response.body.id).toEqual(expect.any(Number))
     expect(response.body.status).toBe('NEW')
+    expect(response.body.paymentStatus).toBe('AWAITING_PAYMENT')
+    expect(response.body.paymentMethod).toBeNull()
     expect(response.body.createdAt).toEqual(expect.any(String))
     expect(response.body.items).toHaveLength(2)
 
@@ -61,7 +63,9 @@ describe('Orders API', () => {
         SELECT
           id,
           customer_identifier,
-          status
+          status,
+          payment_status,
+          payment_method
         FROM orders
         WHERE id = $1
       `,
@@ -73,6 +77,10 @@ describe('Orders API', () => {
       '@integration-test',
     )
     expect(orderResult.rows[0].status).toBe('NEW')
+    expect(orderResult.rows[0].payment_status).toBe(
+      'AWAITING_PAYMENT',
+    )
+    expect(orderResult.rows[0].payment_method).toBeNull()
 
     const itemResult = await pool.query(
       `
@@ -90,6 +98,54 @@ describe('Orders API', () => {
     expect(itemResult.rows[0].position).toBe(1)
     expect(itemResult.rows[1].position).toBe(2)
   })
+
+  it.each([
+    {
+      name: 'unsupported payment status',
+      paymentStatus: 'REFUNDED',
+      paymentMethod: null,
+    },
+    {
+      name: 'unsupported payment method',
+      paymentStatus: 'REPORTED',
+      paymentMethod: 'CARD',
+    },
+    {
+      name: 'reported payment without a method',
+      paymentStatus: 'REPORTED',
+      paymentMethod: null,
+    },
+    {
+      name: 'payment method before payment is reported',
+      paymentStatus: 'AWAITING_PAYMENT',
+      paymentMethod: 'PAYPAL',
+    },
+  ])(
+    'rejects $name at the database boundary',
+    async ({ paymentStatus, paymentMethod }) => {
+      await expect(
+        pool.query(
+          `
+          INSERT INTO orders (
+            order_source,
+            customer_identifier,
+            payment_status,
+            payment_method
+          )
+          VALUES (
+            'instagram',
+            '@payment-constraint-test',
+            $1,
+            $2
+          )
+        `,
+          [paymentStatus, paymentMethod],
+        ),
+      ).rejects.toMatchObject({
+        code: '23514',
+      })
+    },
+  )
 
   it('rejects invalid order input without persisting data', async () => {
     const response = await authenticatedClient
@@ -217,6 +273,8 @@ describe('Orders API', () => {
       id: newerOrder.body.id,
       customerIdentifier: '+49111111111',
       status: 'NEW',
+      paymentStatus: 'AWAITING_PAYMENT',
+      paymentMethod: null,
       total: 45,
     })
 
@@ -224,6 +282,8 @@ describe('Orders API', () => {
       id: olderOrder.body.id,
       customerIdentifier: '@older-customer',
       status: 'NEW',
+      paymentStatus: 'AWAITING_PAYMENT',
+      paymentMethod: null,
       total: 40,
     })
 
@@ -270,6 +330,8 @@ describe('Orders API', () => {
       customerName: 'Detail Test',
       operationalNote: 'Deliver in the afternoon',
       status: 'NEW',
+      paymentStatus: 'AWAITING_PAYMENT',
+      paymentMethod: null,
       total: 74.48,
     })
 
@@ -512,33 +574,33 @@ describe('Orders API', () => {
   })
 
   it('rejects order mutations without a valid CSRF token', async () => {
-  const createResponse = await authenticatedClient.agent
-    .post('/api/orders')
-    .send({})
+    const createResponse = await authenticatedClient.agent
+      .post('/api/orders')
+      .send({})
 
-  const statusResponse = await authenticatedClient.agent
-    .patch('/api/orders/1/status')
-    .set('x-csrf-token', 'A'.repeat(43))
-    .send({})
+    const statusResponse = await authenticatedClient.agent
+      .patch('/api/orders/1/status')
+      .set('x-csrf-token', 'A'.repeat(43))
+      .send({})
 
-  const expectedError = {
-    error: {
-      code: 'INVALID_CSRF_TOKEN',
-      message: 'Invalid CSRF token.',
-    },
-  }
+    const expectedError = {
+      error: {
+        code: 'INVALID_CSRF_TOKEN',
+        message: 'Invalid CSRF token.',
+      },
+    }
 
-  expect(createResponse.status).toBe(403)
-  expect(statusResponse.status).toBe(403)
+    expect(createResponse.status).toBe(403)
+    expect(statusResponse.status).toBe(403)
 
-  expect(createResponse.body).toEqual(expectedError)
-  expect(statusResponse.body).toEqual(expectedError)
+    expect(createResponse.body).toEqual(expectedError)
+    expect(statusResponse.body).toEqual(expectedError)
 
-  const orderResult = await pool.query(
-    'SELECT COUNT(*)::int AS count FROM orders',
-  )
+    const orderResult = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM orders',
+    )
 
-  expect(orderResult.rows[0].count).toBe(0)
-})
+    expect(orderResult.rows[0].count).toBe(0)
+  })
 
 })

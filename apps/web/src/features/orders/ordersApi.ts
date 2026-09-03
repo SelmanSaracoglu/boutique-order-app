@@ -6,12 +6,23 @@ export type OrderStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
+export type PaymentStatus =
+  | 'AWAITING_PAYMENT'
+  | 'REPORTED'
+  | 'CONFIRMED';
+
+export type PaymentMethod =
+  | 'BANK_TRANSFER'
+  | 'PAYPAL';
+
 export type OrderSummary = {
   id: number;
   customerIdentifier: string;
   customerName?: string;
   createdAt: string;
   status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod | null;
   total: number;
 };
 
@@ -53,6 +64,8 @@ export type PersistedOrder = {
   customerName?: string;
   operationalNote?: string;
   status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod | null;
   createdAt: string;
   items: PersistedOrderItem[];
 };
@@ -75,6 +88,8 @@ export type OrderDetail = {
   customerName?: string;
   operationalNote?: string;
   status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod | null;
   createdAt: string;
   items: OrderDetailItem[];
   total: number;
