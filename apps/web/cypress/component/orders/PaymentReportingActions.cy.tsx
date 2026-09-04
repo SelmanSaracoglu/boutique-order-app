@@ -62,7 +62,6 @@ function PaymentReportingHarness({
 }
 const forbiddenPaymentReportRoles = [
     'ADMIN',
-    'PAYMENT_OPERATOR',
     'FULFILLMENT_OPERATOR',
 ] satisfies readonly UserRole[];
 
@@ -142,11 +141,29 @@ describe('PaymentReportingActions', () => {
         );
     });
 
+    it('exposes payment reporting actions for PAYMENT_OPERATOR', () => {
+        cy.mount(
+            <PaymentReportingHarness role="PAYMENT_OPERATOR" />,
+        );
+
+        cy.get(
+            '[aria-label="Payment reporting actions"]',
+        ).should('be.visible');
+
+        cy.contains('label', 'Payment method').should(
+            'be.visible',
+        );
+
+        cy.contains('button', 'Report payment').should(
+            'be.disabled',
+        );
+    });
+
     for (const role of forbiddenPaymentReportRoles) {
         it(`hides payment reporting actions for ${role}`, () => {
             cy.mount(
                 <PaymentReportingHarness role={role}
-            />,
+                />,
             );
 
             cy.get(

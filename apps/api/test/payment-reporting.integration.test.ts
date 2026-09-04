@@ -15,12 +15,12 @@ import type { UserRole } from '../src/auth/user.js'
 
 const forbiddenPaymentReportRoles = [
     'ADMIN',
-    'PAYMENT_OPERATOR',
     'FULFILLMENT_OPERATOR',
 ] satisfies readonly UserRole[]
 
 let adminClient: AuthenticatedTestClient
 let orderOperatorClient: AuthenticatedTestClient
+let paymentOperatorClient: AuthenticatedTestClient
 
 async function createOrder(): Promise<number> {
     const response = await adminClient
@@ -55,43 +55,58 @@ describe('Payment reporting API', () => {
         adminClient = await createAuthenticatedTestClient('ADMIN')
         orderOperatorClient =
             await createAuthenticatedTestClient('ORDER_OPERATOR')
+
+        paymentOperatorClient =
+            await createAuthenticatedTestClient(
+                'PAYMENT_OPERATOR',
+            )
     })
 
     afterAll(async () => {
         await pool.end()
     })
 
-    it.each(['BANK_TRANSFER', 'PAYPAL'] as const)('allows an order operator to report customer payment with %s', async (paymentMethod) => {
-        const orderId = await createOrder()
+    it.each([
+        ['ORDER_OPERATOR', 'BANK_TRANSFER'],
+        ['ORDER_OPERATOR', 'PAYPAL'],
+        ['PAYMENT_OPERATOR', 'BANK_TRANSFER'],
+        ['PAYMENT_OPERATOR', 'PAYPAL'],
+    ] as const)(
+        'allows %s to report customer payment with %s', async (role, paymentMethod) => {
+            const orderId = await createOrder()
 
-        const response = await orderOperatorClient
-            .post(`/api/orders/${orderId}/payment-report`)
-            .send({
+            const client =
+                role === 'ORDER_OPERATOR'
+                    ? orderOperatorClient
+                    : paymentOperatorClient
+
+            const response = await client
+                .post(`/api/orders/${orderId}/payment-report`)
+                .send({ paymentMethod })
+
+            expect(response.status).toBe(200)
+            expect(response.body).toEqual({
+                id: orderId,
+                paymentStatus: 'REPORTED',
                 paymentMethod,
             })
 
-        expect(response.status).toBe(200)
-        expect(response.body).toEqual({
-            id: orderId,
-            paymentStatus: 'REPORTED',
-            paymentMethod,
-        })
-
-        const persistedOrderResult = await pool.query(
-            `
+            const persistedOrderResult = await pool.query(
+                `
         SELECT payment_status, payment_method
         FROM orders
         WHERE id = $1
       `,
-            [orderId],
-        )
+                [orderId],
+            )
 
-        expect(persistedOrderResult.rows[0]).toEqual({
-            payment_status: 'REPORTED',
-            payment_method: paymentMethod,
-        })
-    })
-    
+            expect(persistedOrderResult.rows[0]).toEqual({
+                payment_status: 'REPORTED',
+                payment_method: paymentMethod,
+            })
+        },
+    )
+
     it('rolls back and returns controlled JSON when persistence fails', async () => {
         const orderId = await createOrder()
         const constraintName =

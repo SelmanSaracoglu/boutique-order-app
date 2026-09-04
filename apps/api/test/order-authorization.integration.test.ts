@@ -44,6 +44,21 @@ async function createOrder(
   return response.body.id as number
 }
 
+async function confirmOrderPayment(
+  orderId: number,
+): Promise<void> {
+  await pool.query(
+    `
+      UPDATE orders
+      SET
+        payment_status = 'CONFIRMED',
+        payment_method = 'BANK_TRANSFER'
+      WHERE id = $1
+    `,
+    [orderId],
+  )
+}
+
 describe('Order authorization', () => {
   beforeEach(async () => {
     await pool.query(
@@ -81,8 +96,7 @@ describe('Order authorization', () => {
     expect(detailResponse.body.id).toBe(orderId)
   })
 
-  it.each<UserRole>(['ADMIN', 'ORDER_OPERATOR'])(
-    'allows %s to create orders',
+  it.each<UserRole>(['ADMIN', 'ORDER_OPERATOR'])('allows %s to create orders',
     async (role) => {
       const roleClient =
         await createAuthenticatedTestClient(role)
@@ -124,6 +138,7 @@ describe('Order authorization', () => {
     const adminClient =
       await createAuthenticatedTestClient('ADMIN')
     const orderId = await createOrder(adminClient)
+    await confirmOrderPayment(orderId)
     const roleClient =
       await createAuthenticatedTestClient(role)
 
@@ -138,12 +153,12 @@ describe('Order authorization', () => {
     })
   })
 
-  it(
-    'forbids PAYMENT_OPERATOR from updating order status',
+  it('forbids PAYMENT_OPERATOR from updating order status',
     async () => {
       const adminClient =
         await createAuthenticatedTestClient('ADMIN')
       const orderId = await createOrder(adminClient)
+      await confirmOrderPayment(orderId)
       const paymentClient =
         await createAuthenticatedTestClient(
           'PAYMENT_OPERATOR',

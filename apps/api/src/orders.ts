@@ -220,7 +220,8 @@ ordersRouter.patch('/:orderId/status', requirePermission('ORDER_STATUS_UPDATE'),
       `
         SELECT
           id,
-          status
+          status,
+          payment_status
         FROM orders
         WHERE id = $1
         FOR UPDATE
@@ -262,6 +263,23 @@ ordersRouter.patch('/:orderId/status', requirePermission('ORDER_STATUS_UPDATE'),
         error: {
           code: 'INVALID_STATUS_TRANSITION',
           message: `Order cannot transition from ${currentStatus} to ${requestedStatus}.`,
+        },
+      })
+    }
+
+    if (
+      currentStatus === 'NEW' &&
+      requestedStatus === 'IN_PROGRESS' &&
+      order.payment_status !== 'CONFIRMED'
+    ) {
+      await client.query('ROLLBACK')
+      transactionStarted = false
+
+      return response.status(409).json({
+        error: {
+          code: 'PAYMENT_NOT_CONFIRMED',
+          message:
+            'Order payment must be confirmed before processing can start.',
         },
       })
     }

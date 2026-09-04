@@ -423,6 +423,7 @@ export function OrderDetailDialog() {
               <OrderLifecycleActions
                 orderId={order.id}
                 status={order.status}
+                paymentStatus={order.paymentStatus}
                 onStatusUpdated={handleOrderStatusUpdated}
                 onReloadRequested={reloadOrder}
               />

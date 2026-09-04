@@ -30,6 +30,7 @@ The application currently supports:
 - role-aware frontend actions and protected routes,
 - customer payment reporting and reservation,
 - payment confirmation with preserved payment methods,
+- payment-confirmed processing gate for new orders,
 - automated API integration testing against PostgreSQL,
 - authenticated full-stack browser testing.
 
@@ -263,7 +264,7 @@ Order permissions are enforced server-side.
 | List and view orders    | Allowed   | Allowed          | Allowed            | Allowed                |
 | Create orders           | Allowed   | Allowed          | Forbidden          | Forbidden              |
 | Update order status     | Allowed   | Allowed          | Forbidden          | Allowed                |
-| Report customer payment | Forbidden | Allowed          | Forbidden          | Forbidden              |
+| Report customer payment | Forbidden | Allowed          | Allowed            | Forbidden              |
 | Confirm payment         | Forbidden | Forbidden        | Allowed            | Forbidden              |
 
 The frontend reflects this matrix by hiding unavailable actions and redirecting users away from protected routes.
@@ -305,6 +306,10 @@ POST  /api/orders
 GET   /api/orders
 GET   /api/orders/:orderId
 PATCH /api/orders/:orderId/status
+
+POST  /api/orders/:orderId/payment-report
+POST  /api/orders/:orderId/payment-confirmation
+
 ```
 
 All order endpoints require an authenticated session.
@@ -446,10 +451,14 @@ The endpoint returns:
 
 - `400` for an invalid order ID or request body,
 - `404` when the order does not exist,
-- `409` when the requested transition conflicts with the persisted status,
+- `409`  when the requested transition conflicts with the persisted status or payment state,
 - controlled `500` JSON when persistence fails unexpectedly.
 
 Status decisions and updates run in a PostgreSQL transaction with row-level locking so concurrent requests are evaluated against the latest persisted status.
+
+The `NEW -> IN_PROGRESS` transition additionally requires the persisted payment status to be `CONFIRMED`. Payment reporting alone does not unlock processing, and payment confirmation does not automatically change the order status.
+
+Cancellation remains available for `NEW` orders regardless of payment status.
 
 ## Testing
 
@@ -508,7 +517,7 @@ The component suite runs headlessly in Google Chrome and verifies:
 - order capture,
 - Dashboard behaviour,
 - Order Detail behaviour,
-- order lifecycle actions.
+- order lifecycle actions,
 - payment reporting and confirmation actions.
 
 ### Full-Stack E2E
@@ -519,6 +528,7 @@ Full-stack E2E tests use:
 - the real React application,
 - the running Express API,
 - PostgreSQL-backed users, orders, and sessions.
+
 
 Provision the required development users:
 
@@ -577,6 +587,8 @@ The E2E suite verifies:
 - controlled `403 Forbidden` API responses,
 - logout,
 - server-side session destruction.
+- payment reporting and confirmation,
+- payment-confirmed processing enforcement,
 
 ## Verification
 

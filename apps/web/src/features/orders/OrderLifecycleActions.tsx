@@ -6,6 +6,7 @@ import {
   OrderStatusConflictError,
   updateOrderStatus,
   type OrderStatus,
+  type PaymentStatus,
   type UpdateOrderStatusResponse,
 } from './ordersApi';
 import './order-lifecycle-actions.css';
@@ -20,6 +21,7 @@ type StatusMutationState =
 type OrderLifecycleActionsProps = {
   orderId: number;
   status: OrderStatus;
+  paymentStatus: PaymentStatus;
   onStatusUpdated: (
     updatedOrder: UpdateOrderStatusResponse,
   ) => void;
@@ -36,6 +38,7 @@ const statusLabels: Record<OrderStatus, string> = {
 export function OrderLifecycleActions({
   orderId,
   status,
+  paymentStatus,
   onStatusUpdated,
   onReloadRequested,
 }: OrderLifecycleActionsProps) {
@@ -61,6 +64,9 @@ export function OrderLifecycleActions({
       : status === 'IN_PROGRESS'
         ? 'COMPLETED'
         : null;
+
+  const canUseProgressAction =
+    status !== 'NEW' || paymentStatus === 'CONFIRMED';
 
   const actionsAreBlocked =
     mutationState === 'pending' ||
@@ -126,7 +132,9 @@ export function OrderLifecycleActions({
 
               <p>
                 {status === 'NEW'
-                  ? 'Move this order into active processing.'
+                  ? paymentStatus === 'CONFIRMED'
+                    ? 'Move this order into active processing.'
+                    : 'Processing becomes available after payment is confirmed.'
                   : 'Complete or cancel this active order.'}
               </p>
             </div>
@@ -141,20 +149,22 @@ export function OrderLifecycleActions({
                 Cancel order
               </button>
 
-              <button
-                type="button"
-                className="order-lifecycle__primary-action"
-                disabled={actionsAreBlocked}
-                onClick={() =>
-                  void changeStatus(nextProgressStatus)
-                }
-              >
-                {mutationState === 'pending'
-                  ? 'Updating...'
-                  : status === 'NEW'
-                    ? 'Start processing'
-                    : 'Complete order'}
-              </button>
+              {canUseProgressAction && (
+                <button
+                  type="button"
+                  className="order-lifecycle__primary-action"
+                  disabled={actionsAreBlocked}
+                  onClick={() => {
+                    void changeStatus(nextProgressStatus);
+                  }}
+                >
+                  {mutationState === 'pending'
+                    ? 'Updating...'
+                    : status === 'NEW'
+                      ? 'Start processing'
+                      : 'Complete order'}
+                </button>
+              )}
             </div>
           </div>
         )}

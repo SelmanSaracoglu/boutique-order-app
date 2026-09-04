@@ -11,6 +11,16 @@ describe('Order lifecycle', () => {
       '**/api/orders/*/status',
     ).as('updateStatus');
 
+    cy.intercept(
+      'POST',
+      '**/api/orders/*/payment-report',
+    ).as('reportPayment');
+
+    cy.intercept(
+      'POST',
+      '**/api/orders/*/payment-confirmation',
+    ).as('confirmPayment');
+
     loginAs('ORDER_OPERATOR');
 
     cy.contains('.summary-card', 'Open Orders')
@@ -116,6 +126,125 @@ describe('Order lifecycle', () => {
         cy.contains(uniqueIdentifier).should('exist');
         cy.contains('E2E Black Dress').should('exist');
         cy.contains('strong', 'New').should('exist');
+
+        cy.get(
+          '[aria-label="Payment information"]',
+        ).should('contain.text', 'Awaiting payment');
+
+        cy.contains(
+          'button',
+          'Start processing',
+        ).should('not.exist');
+      });
+
+    cy.get('dialog .order-detail').scrollTo('center');
+
+    cy.get(
+      'dialog [aria-label="Payment reporting actions"]',
+    ).within(() => {
+      cy.contains('label', 'Payment method')
+        .find('select')
+        .select('BANK_TRANSFER');
+
+      cy.contains(
+        'button',
+        'Report payment',
+      ).click();
+    });
+
+    cy.wait('@reportPayment')
+      .its('request.body')
+      .should('deep.equal', {
+        paymentMethod: 'BANK_TRANSFER',
+      });
+
+    cy.get(
+      'dialog [aria-label="Payment information"]',
+    ).should('contain.text', 'Reserved');
+
+    cy.get(
+      'dialog [aria-label="Order lifecycle actions"]',
+    ).within(() => {
+      cy.contains('button', 'Cancel order').should(
+        'exist',
+      );
+
+      cy.contains(
+        'button',
+        'Start processing',
+      ).should('not.exist');
+    });
+
+    cy.contains('button', 'Close').click();
+    cy.contains('button', 'Sign out').click();
+
+    cy.contains(
+      'button',
+      'Sign in',
+    ).should('be.visible');
+
+    loginAs('PAYMENT_OPERATOR');
+
+    cy.contains(
+      '[data-testid="order-row"]',
+      uniqueIdentifier,
+    )
+      .should('be.visible')
+      .within(() => {
+        cy.contains('a', 'View').click();
+      });
+
+    cy.get('[data-testid="order-detail-dialog"]')
+      .should('be.visible')
+      .within(() => {
+        cy.get(
+          '[aria-label="Payment information"]',
+        ).should('contain.text', 'Reserved');
+
+        cy.get(
+          '[aria-label="Order lifecycle actions"]',
+        ).should('not.exist');
+      });
+
+    cy.get('dialog .order-detail').scrollTo('center');
+
+    cy.get(
+      'dialog [aria-label="Payment confirmation actions"]',
+    )
+      .contains('button', 'Confirm payment')
+      .click();
+
+    cy.wait('@confirmPayment');
+
+    cy.get(
+      'dialog [aria-label="Payment information"]',
+    ).should('contain.text', 'Confirmed');
+
+    cy.contains('button', 'Close').click();
+    cy.contains('button', 'Sign out').click();
+
+    cy.contains(
+      'button',
+      'Sign in',
+    ).should('be.visible');
+
+    loginAs('ORDER_OPERATOR');
+
+    cy.contains(
+      '[data-testid="order-row"]',
+      uniqueIdentifier,
+    )
+      .should('be.visible')
+      .within(() => {
+        cy.contains('a', 'View').click();
+      });
+
+    cy.get('[data-testid="order-detail-dialog"]')
+      .should('be.visible')
+      .within(() => {
+        cy.get(
+          '[aria-label="Payment information"]',
+        ).should('contain.text', 'Confirmed');
 
         cy.contains(
           'button',

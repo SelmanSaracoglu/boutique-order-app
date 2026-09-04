@@ -5,7 +5,26 @@ import {
   type AuthenticatedTestClient,
 } from './authenticatedTestClient.js'
 
+import type {
+  PaymentMethod,
+  PaymentStatus,
+} from '../src/payments/payment.js'
+
 let authenticatedClient: AuthenticatedTestClient
+
+const unconfirmedPaymentStates = [
+  {
+    paymentStatus: 'AWAITING_PAYMENT',
+    paymentMethod: null,
+  },
+  {
+    paymentStatus: 'REPORTED',
+    paymentMethod: 'BANK_TRANSFER',
+  },
+] satisfies readonly {
+  paymentStatus: PaymentStatus
+  paymentMethod: PaymentMethod | null
+}[]
 
 async function createOrder(): Promise<number> {
   const response = await authenticatedClient
@@ -28,17 +47,36 @@ async function createOrder(): Promise<number> {
   return response.body.id as number
 }
 
+async function setPaymentState(
+  orderId: number,
+  paymentStatus: PaymentStatus,
+  paymentMethod: PaymentMethod | null,
+): Promise<void> {
+  await pool.query(
+    `
+      UPDATE orders
+      SET
+        payment_status = $1,
+        payment_method = $2
+      WHERE id = $3
+    `,
+    [paymentStatus, paymentMethod, orderId],
+  )
+}
+
+
+
 describe('Order status API', () => {
   beforeEach(async () => {
     await pool.query(
       'TRUNCATE order_items, orders RESTART IDENTITY CASCADE',
     )
     await pool.query(
-  'TRUNCATE user_sessions, users RESTART IDENTITY CASCADE',
-)
+      'TRUNCATE user_sessions, users RESTART IDENTITY CASCADE',
+    )
 
-authenticatedClient =
-  await createAuthenticatedTestClient()
+    authenticatedClient =
+      await createAuthenticatedTestClient()
   })
 
   afterAll(async () => {
@@ -47,6 +85,12 @@ authenticatedClient =
 
   it('persists permitted status transitions and exposes the current status', async () => {
     const orderId = await createOrder()
+
+    await setPaymentState(
+      orderId,
+      'CONFIRMED',
+      'BANK_TRANSFER',
+    )
 
     const inProgressResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
@@ -86,6 +130,49 @@ authenticatedClient =
     expect(detailResponse.body.status).toBe('COMPLETED')
   })
 
+  it.each(unconfirmedPaymentStates)('rejects starting processing while payment is $paymentStatus',
+    async ({ paymentStatus, paymentMethod }) => {
+      const orderId = await createOrder()
+
+      await setPaymentState(
+        orderId,
+        paymentStatus,
+        paymentMethod,
+      )
+
+      const response = await authenticatedClient
+        .patch(`/api/orders/${orderId}/status`)
+        .send({ status: 'IN_PROGRESS' })
+
+      expect(response.status).toBe(409)
+      expect(response.body).toEqual({
+        error: {
+          code: 'PAYMENT_NOT_CONFIRMED',
+          message:
+            'Order payment must be confirmed before processing can start.',
+        },
+      })
+
+      const persistedOrderResult = await pool.query(
+        `
+        SELECT
+          status,
+          payment_status,
+          payment_method
+        FROM orders
+        WHERE id = $1
+      `,
+        [orderId],
+      )
+
+      expect(persistedOrderResult.rows[0]).toEqual({
+        status: 'NEW',
+        payment_status: paymentStatus,
+        payment_method: paymentMethod,
+      })
+    },
+  )
+
   it('rejects an invalid transition without changing persisted status', async () => {
     const orderId = await createOrder()
 
@@ -111,6 +198,11 @@ authenticatedClient =
 
   it('treats a repeated status request as an idempotent success', async () => {
     const orderId = await createOrder()
+    await setPaymentState(
+      orderId,
+      'CONFIRMED',
+      'BANK_TRANSFER',
+    )
 
     const firstResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
@@ -135,7 +227,7 @@ authenticatedClient =
     expect(persistedOrderResult.rows[0].status).toBe('IN_PROGRESS')
   })
 
-    it.each([
+  it.each([
     {
       name: 'missing status',
       body: {},
@@ -200,8 +292,14 @@ authenticatedClient =
     })
   })
 
-    it('serializes concurrent terminal status transitions', async () => {
+  it('serializes concurrent terminal status transitions', async () => {
     const orderId = await createOrder()
+
+    await setPaymentState(
+      orderId,
+      'CONFIRMED',
+      'BANK_TRANSFER',
+    )
 
     const inProgressResponse = await authenticatedClient
       .patch(`/api/orders/${orderId}/status`)
@@ -253,6 +351,11 @@ authenticatedClient =
 
   it('rolls back and returns controlled JSON when persistence fails', async () => {
     const orderId = await createOrder()
+    await setPaymentState(
+      orderId,
+      'CONFIRMED',
+      'BANK_TRANSFER',
+    )
 
     await pool.query(`
       ALTER TABLE orders

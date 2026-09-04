@@ -16,7 +16,6 @@ const rolePermissionCases: Array<{
       'ORDER_READ',
       'ORDER_CREATE',
       'ORDER_STATUS_UPDATE',
-      'PAYMENT_REPORT',
     ],
   },
   {
@@ -41,7 +40,6 @@ const rolePermissionCases: Array<{
     allowedPermissions: [
       'ORDER_READ',
       'ORDER_STATUS_UPDATE',
-      'PAYMENT_REPORT',
     ],
   },
 ]

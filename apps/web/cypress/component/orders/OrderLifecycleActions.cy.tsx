@@ -5,12 +5,14 @@ import type { UserRole } from '../../../src/features/auth/auth.types';
 import { OrderLifecycleActions } from '../../../src/features/orders/OrderLifecycleActions';
 import type {
   OrderStatus,
+  PaymentStatus,
   UpdateOrderStatusResponse,
 } from '../../../src/features/orders/ordersApi';
 
 type LifecycleHarnessProps = {
   initialStatus: OrderStatus;
   role?: UserRole;
+  paymentStatus?: PaymentStatus;
   onStatusUpdated?: (
     updatedOrder: UpdateOrderStatusResponse,
   ) => void;
@@ -19,7 +21,8 @@ type LifecycleHarnessProps = {
 
 function LifecycleHarness({
   initialStatus,
-  role = 'ADMIN',
+  paymentStatus = 'CONFIRMED',
+  role = 'FULFILLMENT_OPERATOR',
   onStatusUpdated = () => undefined,
   onReloadRequested = () => undefined,
 }: LifecycleHarnessProps) {
@@ -32,6 +35,7 @@ function LifecycleHarness({
       <OrderLifecycleActions
         orderId={101}
         status={status}
+        paymentStatus={paymentStatus}
         onStatusUpdated={(updatedOrder) => {
           setStatus(updatedOrder.status);
           onStatusUpdated(updatedOrder);
@@ -384,4 +388,27 @@ describe('OrderLifecycleActions', () => {
       '[aria-label="Order lifecycle actions"]',
     ).should('not.exist');
   });
+
+  for (const paymentStatus of [
+    'AWAITING_PAYMENT',
+    'REPORTED',
+  ] as const) {
+    it(`blocks processing while payment is ${paymentStatus} but keeps cancellation available`, () => {
+      cy.mount(
+        <LifecycleHarness
+          initialStatus="NEW"
+          paymentStatus={paymentStatus}
+        />,
+      );
+
+      cy.contains('button', 'Cancel order').should(
+        'be.visible',
+      );
+
+      cy.contains(
+        'button',
+        'Start processing',
+      ).should('not.exist');
+    });
+  }
 });

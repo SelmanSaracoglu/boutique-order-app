@@ -104,6 +104,43 @@ describe('OrderDetailDialog', () => {
       body: orderSummaries,
     }).as('listOrders');
   });
+  
+  it('keeps processing unavailable while payment is reserved', () => {
+    const reportedOrderDetail = {
+      ...orderDetail,
+      paymentStatus: 'REPORTED',
+      paymentMethod: 'BANK_TRANSFER',
+    };
+
+    cy.intercept('GET', '**/api/orders/101', {
+      statusCode: 200,
+      body: reportedOrderDetail,
+    }).as('getOrder');
+
+    mountOrdersRoute(
+      '/orders/101',
+      'FULFILLMENT_OPERATOR',
+    );
+
+    cy.wait('@getOrder');
+
+    cy.get(
+      'dialog [aria-label="Order lifecycle actions"]',
+    ).within(() => {
+      cy.contains(
+        'Processing becomes available after payment is confirmed.',
+      ).should('exist');
+
+      cy.contains('button', 'Cancel order').should(
+        'exist',
+      );
+
+      cy.contains(
+        'button',
+        'Start processing',
+      ).should('not.exist');
+    });
+  });
 
   it('opens persisted order detail from the Dashboard while keeping the Dashboard rendered', () => {
     cy.intercept(
@@ -171,12 +208,30 @@ describe('OrderDetailDialog', () => {
   });
 
   it('keeps the Detail and Dashboard synchronized through lifecycle updates', () => {
+
+    const confirmedOrderSummary = {
+      ...orderSummaries[0],
+      paymentStatus: 'CONFIRMED',
+      paymentMethod: 'BANK_TRANSFER',
+    };
+
+    const confirmedOrderDetail = {
+      ...orderDetail,
+      paymentStatus: 'CONFIRMED',
+      paymentMethod: 'BANK_TRANSFER',
+    };
+
+    cy.intercept('GET', '**/api/orders', {
+      statusCode: 200,
+      body: [confirmedOrderSummary],
+    }).as('listOrders');
+
     cy.intercept(
       'GET',
       '**/api/orders/101',
       {
         statusCode: 200,
-        body: orderDetail,
+        body: confirmedOrderDetail,
       },
     ).as('getOrder');
 
