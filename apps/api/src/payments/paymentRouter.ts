@@ -8,7 +8,7 @@ import { confirmPayment } from './confirmPayment.js'
 
 export const paymentRouter = Router()
 
-paymentRouter.post( '/:orderId/payment-confirmation',
+paymentRouter.post('/:orderId/payment-confirmation',
   requirePermission('PAYMENT_CONFIRM'),
   requireCsrf,
   async (request, response) => {
@@ -25,8 +25,18 @@ paymentRouter.post( '/:orderId/payment-confirmation',
     }
 
     try {
+
+      const actor = request.authenticatedUser
+
+      if (!actor) {
+        throw new Error(
+          'Authenticated actor is missing from payment confirmation',
+        )
+      }
+
       const result = await confirmPayment(
         orderIdValidationResult.data,
+        actor,
       )
 
       if (result.outcome === 'not_found') {
@@ -66,7 +76,7 @@ paymentRouter.post( '/:orderId/payment-confirmation',
   },
 )
 
-paymentRouter.post( '/:orderId/payment-report',
+paymentRouter.post('/:orderId/payment-report',
   requirePermission('PAYMENT_REPORT'),
   requireCsrf,
   async (request, response) => {

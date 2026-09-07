@@ -14,6 +14,7 @@ import {
 describe('Product audit events', () => {
     let authenticatedClient: AuthenticatedTestClient
     let paymentReporterClient: AuthenticatedTestClient
+    let paymentConfirmerClient: AuthenticatedTestClient
 
     beforeEach(async () => {
         await pool.query(
@@ -33,11 +34,45 @@ describe('Product audit events', () => {
 
         paymentReporterClient =
             await createAuthenticatedTestClient('ORDER_OPERATOR')
+
+        paymentConfirmerClient =
+            await createAuthenticatedTestClient('PAYMENT_OPERATOR')
     })
 
     afterAll(async () => {
         await pool.end()
     })
+
+    async function createReportedOrder(): Promise<number> {
+        const createResponse = await authenticatedClient
+            .post('/api/orders')
+            .send({
+                orderSource: 'instagram',
+                customerIdentifier: '@confirmation-audit-test',
+                items: [
+                    {
+                        supplierAlias: 'supplier-a',
+                        description: 'Confirmation audit item',
+                        quantity: 1,
+                        unitPrice: 35,
+                    },
+                ],
+            })
+
+        expect(createResponse.status).toBe(201)
+
+        const orderId = createResponse.body.id as number
+
+        const reportResponse = await paymentReporterClient
+            .post(`/api/orders/${orderId}/payment-report`)
+            .send({
+                paymentMethod: 'BANK_TRANSFER',
+            })
+
+        expect(reportResponse.status).toBe(200)
+
+        return orderId
+    }
 
     it('records one allowlisted ORDER_CREATED event from the authenticated session', async () => {
         const response = await authenticatedClient
@@ -266,4 +301,148 @@ describe('Product audit events', () => {
             },
         })
     })
+
+    it('records one PAYMENT_CONFIRMED event with the confirming actor and state transition', async () => {
+        const orderId = await createReportedOrder()
+
+        const response = await paymentConfirmerClient.post(
+            `/api/orders/${orderId}/payment-confirmation`,
+        )
+
+        expect(response.status).toBe(200)
+
+        const result = await pool.query(
+            `
+      SELECT
+        action,
+        actor_user_id,
+        actor_username,
+        actor_role,
+        target_resource_type,
+        target_resource_id,
+        previous_order_status,
+        new_order_status,
+        previous_payment_status,
+        new_payment_status,
+        context
+      FROM audit_events
+      WHERE action = 'PAYMENT_CONFIRMED'
+    `,
+        )
+
+        expect(result.rows).toHaveLength(1)
+
+        expect(result.rows[0]).toEqual({
+            action: 'PAYMENT_CONFIRMED',
+            actor_user_id: paymentConfirmerClient.user.id,
+            actor_username: paymentConfirmerClient.user.username,
+            actor_role: 'PAYMENT_OPERATOR',
+            target_resource_type: 'ORDER',
+            target_resource_id: String(orderId),
+            previous_order_status: 'NEW',
+            new_order_status: 'NEW',
+            previous_payment_status: 'REPORTED',
+            new_payment_status: 'CONFIRMED',
+            context: {
+                paymentMethod: 'BANK_TRANSFER',
+            },
+        })
+    })
+
+    it('records only one success event for concurrent payment confirmations', async () => {
+        const orderId = await createReportedOrder()
+
+        const responses = await Promise.all([
+            paymentConfirmerClient.post(
+                `/api/orders/${orderId}/payment-confirmation`,
+            ),
+            paymentConfirmerClient.post(
+                `/api/orders/${orderId}/payment-confirmation`,
+            ),
+        ])
+
+        expect(
+            responses
+                .map((response) => response.status)
+                .sort(),
+        ).toEqual([200, 409])
+
+        const result = await pool.query(
+            `
+      SELECT COUNT(*)::int AS count
+      FROM audit_events
+      WHERE action = 'PAYMENT_CONFIRMED'
+        AND target_resource_id = $1
+    `,
+            [String(orderId)],
+        )
+
+        expect(result.rows[0].count).toBe(1)
+    })
+
+    it('rolls back payment confirmation when the audit insert fails', async () => {
+  const orderId = await createReportedOrder()
+  const constraintName =
+    'audit_payment_confirmation_test_failure'
+
+  await pool.query(`
+    ALTER TABLE audit_events
+    DROP CONSTRAINT IF EXISTS ${constraintName}
+  `)
+
+  await pool.query(`
+    ALTER TABLE audit_events
+    ADD CONSTRAINT ${constraintName}
+    CHECK (action <> 'PAYMENT_CONFIRMED')
+  `)
+
+  try {
+    const response = await paymentConfirmerClient.post(
+      `/api/orders/${orderId}/payment-confirmation`,
+    )
+
+    expect(response.status).toBe(500)
+
+    expect(response.body).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to confirm payment.',
+      },
+    })
+
+    const orderResult = await pool.query(
+      `
+        SELECT
+          payment_status,
+          payment_method
+        FROM orders
+        WHERE id = $1
+      `,
+      [orderId],
+    )
+
+    expect(orderResult.rows[0]).toEqual({
+      payment_status: 'REPORTED',
+      payment_method: 'BANK_TRANSFER',
+    })
+
+    const auditResult = await pool.query(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM audit_events
+        WHERE action = 'PAYMENT_CONFIRMED'
+          AND target_resource_id = $1
+      `,
+      [String(orderId)],
+    )
+
+    expect(auditResult.rows[0].count).toBe(0)
+  } finally {
+    await pool.query(`
+      ALTER TABLE audit_events
+      DROP CONSTRAINT IF EXISTS ${constraintName}
+    `)
+  }
+})
+
 })

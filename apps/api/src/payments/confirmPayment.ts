@@ -9,6 +9,9 @@ import {
   type PaymentOrder,
 } from './paymentRepository.js'
 
+import { recordProductAuditEvent } from '../audit/auditRepository.js'
+import type { AuditActor } from '../audit/auditEvent.js'
+
 const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
   'COMPLETED',
   'CANCELLED',
@@ -16,17 +19,17 @@ const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
 
 export type ConfirmPaymentResult =
   | {
-      outcome: 'confirmed'
-      payment: ConfirmedPayment
-    }
+    outcome: 'confirmed'
+    payment: ConfirmedPayment
+  }
   | {
-      outcome: 'not_found'
-    }
+    outcome: 'not_found'
+  }
   | {
-      outcome: 'not_allowed'
-      orderStatus: OrderStatus
-      paymentStatus: PaymentStatus
-    }
+    outcome: 'not_allowed'
+    orderStatus: OrderStatus
+    paymentStatus: PaymentStatus
+  }
 
 export function canConfirmPayment(
   order: PaymentOrder,
@@ -42,6 +45,7 @@ export function canConfirmPayment(
 
 export async function confirmPayment(
   orderId: number,
+  actor: AuditActor,
 ): Promise<ConfirmPaymentResult> {
   let client: PoolClient | undefined
   let transactionStarted = false
@@ -82,6 +86,13 @@ export async function confirmPayment(
       orderId,
     )
 
+    await recordProductAuditEvent(client, {
+      action: 'PAYMENT_CONFIRMED',
+      actor,
+      orderId,
+      orderStatus: order.orderStatus,
+      paymentMethod: payment.paymentMethod,
+    })
     await client.query('COMMIT')
     transactionStarted = false
 
