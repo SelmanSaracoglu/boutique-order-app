@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool } from './db.js'
 import { requireCsrf } from './auth/requireCsrf.js'
 import { requirePermission } from './auth/requirePermission.js'
+import { recordProductAuditEvent } from './audit/auditRepository.js'
 
 import {
   canTransitionOrderStatus,
@@ -39,6 +40,14 @@ ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (re
   let transactionStarted = false
 
   try {
+    const actor =  request.authenticatedUser
+
+    if (!actor) {
+      throw new Error(
+        'Authenticated user is missing from order creation',
+      )
+    }
+
     client = await pool.connect()
 
     await client.query('BEGIN')
@@ -133,6 +142,14 @@ ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (re
         unitPrice: Number(savedItem.unit_price),
       })
     }
+
+    await recordProductAuditEvent(client, {
+      action: 'ORDER_CREATED',
+      actor,
+      orderId: order.id,
+      orderSource: order.order_source,
+      itemCount: savedItems.length,
+    })
 
     await client.query('COMMIT')
 

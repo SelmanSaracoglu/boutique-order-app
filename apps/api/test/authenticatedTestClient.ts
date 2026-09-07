@@ -15,7 +15,7 @@ export async function createAuthenticatedTestClient(
         .replaceAll('-', '')
         .slice(0, 16)}`
 
-    await provisionUser({
+    const user = await provisionUser({
         username,
         password: TEST_PASSWORD,
         role,
@@ -47,6 +47,7 @@ export async function createAuthenticatedTestClient(
     return {
         agent,
         csrfToken,
+        user,
 
         get(path: string) {
             return agent.get(path)

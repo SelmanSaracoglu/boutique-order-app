@@ -11,6 +11,9 @@ import {
   type ReportedPayment,
 } from './paymentRepository.js'
 
+import { recordProductAuditEvent } from '../audit/auditRepository.js'
+import type { AuditActor } from '../audit/auditEvent.js'
+
 const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
   'COMPLETED',
   'CANCELLED',
@@ -18,21 +21,22 @@ const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
 
 export type ReportPaymentResult =
   | {
-      outcome: 'reported'
-      payment: ReportedPayment
-    }
+    outcome: 'reported'
+    payment: ReportedPayment
+  }
   | {
-      outcome: 'not_found'
-    }
+    outcome: 'not_found'
+  }
   | {
-      outcome: 'not_allowed'
-      orderStatus: OrderStatus
-      paymentStatus: PaymentStatus
-    }
+    outcome: 'not_allowed'
+    orderStatus: OrderStatus
+    paymentStatus: PaymentStatus
+  }
 
 export async function reportPayment(
   orderId: number,
   paymentMethod: PaymentMethod,
+  actor: AuditActor,
 ): Promise<ReportPaymentResult> {
   let client: PoolClient | undefined
   let transactionStarted = false
@@ -81,6 +85,15 @@ export async function reportPayment(
       orderId,
       paymentMethod,
     )
+
+    await recordProductAuditEvent(client, {
+      action: 'PAYMENT_REPORTED',
+      actor,
+      orderId,
+      orderStatus: order.orderStatus,
+      paymentMethod: payment.paymentMethod,
+    })
+
 
     await client.query('COMMIT')
     transactionStarted = false

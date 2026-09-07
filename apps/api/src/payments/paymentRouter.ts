@@ -102,9 +102,19 @@ paymentRouter.post( '/:orderId/payment-report',
     }
 
     try {
+
+      const actor = request.authenticatedUser
+
+      if (!actor) {
+        throw new Error(
+          'Authenticated actor is missing from payment report',
+        )
+      }
+
       const result = await reportPayment(
         orderIdValidationResult.data,
         inputValidationResult.data.paymentMethod,
+        actor,
       )
 
       if (result.outcome === 'not_found') {
