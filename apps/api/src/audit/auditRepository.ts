@@ -180,3 +180,33 @@ export async function recordProductAuditEvent(
     )
   }
 }
+
+export async function ensureAuditLoggingStarted(
+  client: PoolClient,
+): Promise<void> {
+  await client.query(`
+    INSERT INTO audit_events (
+      schema_version,
+      category,
+      action,
+      outcome,
+      severity,
+      actor_type,
+      target_resource_type,
+      target_resource_id,
+      context
+    )
+    VALUES (
+      1,
+      'SYSTEM',
+      'AUDIT_LOGGING_STARTED',
+      'SUCCESS',
+      'INFO',
+      'SYSTEM',
+      'AUDIT_LOG',
+      'product-audit',
+      '{}'::jsonb
+    )
+    ON CONFLICT DO NOTHING
+  `)
+}

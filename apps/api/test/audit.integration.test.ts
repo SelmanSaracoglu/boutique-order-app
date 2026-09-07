@@ -11,6 +11,8 @@ import {
     type AuthenticatedTestClient,
 } from './authenticatedTestClient.js'
 
+import { ensureAuditLoggingStarted } from '../src/audit/auditRepository.js'
+
 describe('Product audit events', () => {
     let authenticatedClient: AuthenticatedTestClient
     let paymentReporterClient: AuthenticatedTestClient
@@ -734,5 +736,70 @@ describe('Product audit events', () => {
       DROP CONSTRAINT IF EXISTS ${constraintName}
     `)
         }
+    })
+
+    it('creates the audit coverage marker once without backfilling existing orders', async () => {
+        await pool.query(`
+    INSERT INTO orders (
+      order_source,
+      customer_identifier
+    )
+    VALUES (
+      'instagram',
+      'existing-before-audit'
+    )
+  `)
+
+        const client = await pool.connect()
+
+        try {
+            await ensureAuditLoggingStarted(client)
+            await ensureAuditLoggingStarted(client)
+        } finally {
+            client.release()
+        }
+
+        const markerResult = await pool.query(`
+    SELECT
+      schema_version,
+      category,
+      action,
+      outcome,
+      severity,
+      actor_type,
+      actor_user_id,
+      actor_username,
+      actor_role,
+      target_resource_type,
+      target_resource_id,
+      context
+    FROM audit_events
+    WHERE action = 'AUDIT_LOGGING_STARTED'
+  `)
+
+        expect(markerResult.rows).toEqual([
+            {
+                schema_version: 1,
+                category: 'SYSTEM',
+                action: 'AUDIT_LOGGING_STARTED',
+                outcome: 'SUCCESS',
+                severity: 'INFO',
+                actor_type: 'SYSTEM',
+                actor_user_id: null,
+                actor_username: null,
+                actor_role: null,
+                target_resource_type: 'AUDIT_LOG',
+                target_resource_id: 'product-audit',
+                context: {},
+            },
+        ])
+
+        const productEventResult = await pool.query(`
+    SELECT COUNT(*)::int AS count
+    FROM audit_events
+    WHERE target_resource_type = 'ORDER'
+  `)
+
+        expect(productEventResult.rows[0].count).toBe(0)
     })
 })
