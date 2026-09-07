@@ -15,6 +15,7 @@ describe('Product audit events', () => {
     let authenticatedClient: AuthenticatedTestClient
     let paymentReporterClient: AuthenticatedTestClient
     let paymentConfirmerClient: AuthenticatedTestClient
+    let fulfillmentClient: AuthenticatedTestClient
 
     beforeEach(async () => {
         await pool.query(
@@ -37,6 +38,9 @@ describe('Product audit events', () => {
 
         paymentConfirmerClient =
             await createAuthenticatedTestClient('PAYMENT_OPERATOR')
+
+        fulfillmentClient =
+            await createAuthenticatedTestClient('FULFILLMENT_OPERATOR',)
     })
 
     afterAll(async () => {
@@ -70,6 +74,19 @@ describe('Product audit events', () => {
             })
 
         expect(reportResponse.status).toBe(200)
+
+        return orderId
+    }
+
+    async function createConfirmedOrder(): Promise<number> {
+        const orderId = await createReportedOrder()
+
+        const confirmResponse =
+            await paymentConfirmerClient.post(
+                `/api/orders/${orderId}/payment-confirmation`,
+            )
+
+        expect(confirmResponse.status).toBe(200)
 
         return orderId
     }
@@ -381,68 +398,341 @@ describe('Product audit events', () => {
     })
 
     it('rolls back payment confirmation when the audit insert fails', async () => {
-  const orderId = await createReportedOrder()
-  const constraintName =
-    'audit_payment_confirmation_test_failure'
+        const orderId = await createReportedOrder()
+        const constraintName =
+            'audit_payment_confirmation_test_failure'
 
-  await pool.query(`
+        await pool.query(`
     ALTER TABLE audit_events
     DROP CONSTRAINT IF EXISTS ${constraintName}
   `)
 
-  await pool.query(`
+        await pool.query(`
     ALTER TABLE audit_events
     ADD CONSTRAINT ${constraintName}
     CHECK (action <> 'PAYMENT_CONFIRMED')
   `)
 
-  try {
-    const response = await paymentConfirmerClient.post(
-      `/api/orders/${orderId}/payment-confirmation`,
-    )
+        try {
+            const response = await paymentConfirmerClient.post(
+                `/api/orders/${orderId}/payment-confirmation`,
+            )
 
-    expect(response.status).toBe(500)
+            expect(response.status).toBe(500)
 
-    expect(response.body).toEqual({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Unable to confirm payment.',
-      },
-    })
+            expect(response.body).toEqual({
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: 'Unable to confirm payment.',
+                },
+            })
 
-    const orderResult = await pool.query(
-      `
+            const orderResult = await pool.query(
+                `
         SELECT
           payment_status,
           payment_method
         FROM orders
         WHERE id = $1
       `,
-      [orderId],
-    )
+                [orderId],
+            )
 
-    expect(orderResult.rows[0]).toEqual({
-      payment_status: 'REPORTED',
-      payment_method: 'BANK_TRANSFER',
-    })
+            expect(orderResult.rows[0]).toEqual({
+                payment_status: 'REPORTED',
+                payment_method: 'BANK_TRANSFER',
+            })
 
-    const auditResult = await pool.query(
-      `
+            const auditResult = await pool.query(
+                `
         SELECT COUNT(*)::int AS count
         FROM audit_events
         WHERE action = 'PAYMENT_CONFIRMED'
           AND target_resource_id = $1
       `,
-      [String(orderId)],
-    )
+                [String(orderId)],
+            )
 
-    expect(auditResult.rows[0].count).toBe(0)
-  } finally {
-    await pool.query(`
+            expect(auditResult.rows[0].count).toBe(0)
+        } finally {
+            await pool.query(`
       ALTER TABLE audit_events
       DROP CONSTRAINT IF EXISTS ${constraintName}
     `)
-  }
-})
+        }
+    })
 
+    it('records processing and completion events with lifecycle state transitions', async () => {
+        const orderId = await createConfirmedOrder()
+
+        const processingResponse = await fulfillmentClient
+            .patch(`/api/orders/${orderId}/status`)
+            .send({
+                status: 'IN_PROGRESS',
+            })
+
+        expect(processingResponse.status).toBe(200)
+
+        const repeatedProcessingResponse =
+            await fulfillmentClient
+                .patch(`/api/orders/${orderId}/status`)
+                .send({
+                    status: 'IN_PROGRESS',
+                })
+
+        expect(repeatedProcessingResponse.status).toBe(200)
+
+        const completionResponse = await fulfillmentClient
+            .patch(`/api/orders/${orderId}/status`)
+            .send({
+                status: 'COMPLETED',
+            })
+
+        expect(completionResponse.status).toBe(200)
+
+        const result = await pool.query(
+            `
+      SELECT
+        action,
+        actor_user_id,
+        actor_username,
+        actor_role,
+        target_resource_type,
+        target_resource_id,
+        previous_order_status,
+        new_order_status,
+        previous_payment_status,
+        new_payment_status,
+        context
+      FROM audit_events
+      WHERE target_resource_id = $1
+        AND action IN (
+          'ORDER_PROCESSING_STARTED',
+          'ORDER_COMPLETED'
+        )
+      ORDER BY id
+    `,
+            [String(orderId)],
+        )
+
+        expect(result.rows).toEqual([
+            {
+                action: 'ORDER_PROCESSING_STARTED',
+                actor_user_id: fulfillmentClient.user.id,
+                actor_username: fulfillmentClient.user.username,
+                actor_role: 'FULFILLMENT_OPERATOR',
+                target_resource_type: 'ORDER',
+                target_resource_id: String(orderId),
+                previous_order_status: 'NEW',
+                new_order_status: 'IN_PROGRESS',
+                previous_payment_status: 'CONFIRMED',
+                new_payment_status: 'CONFIRMED',
+                context: {},
+            },
+            {
+                action: 'ORDER_COMPLETED',
+                actor_user_id: fulfillmentClient.user.id,
+                actor_username: fulfillmentClient.user.username,
+                actor_role: 'FULFILLMENT_OPERATOR',
+                target_resource_type: 'ORDER',
+                target_resource_id: String(orderId),
+                previous_order_status: 'IN_PROGRESS',
+                new_order_status: 'COMPLETED',
+                previous_payment_status: 'CONFIRMED',
+                new_payment_status: 'CONFIRMED',
+                context: {},
+            },
+        ])
+    })
+
+    it('records an ORDER_CANCELLED event from the actual previous state', async () => {
+        const createResponse = await authenticatedClient
+            .post('/api/orders')
+            .send({
+                orderSource: 'instagram',
+                customerIdentifier: '@cancellation-audit-test',
+                items: [
+                    {
+                        supplierAlias: 'supplier-a',
+                        description: 'Cancellation audit item',
+                        quantity: 1,
+                        unitPrice: 25,
+                    },
+                ],
+            })
+
+        expect(createResponse.status).toBe(201)
+
+        const orderId = createResponse.body.id as number
+
+        const cancelResponse = await fulfillmentClient
+            .patch(`/api/orders/${orderId}/status`)
+            .send({
+                status: 'CANCELLED',
+            })
+
+        expect(cancelResponse.status).toBe(200)
+
+        const result = await pool.query(
+            `
+      SELECT
+        action,
+        actor_user_id,
+        actor_username,
+        actor_role,
+        target_resource_id,
+        previous_order_status,
+        new_order_status,
+        previous_payment_status,
+        new_payment_status,
+        context
+      FROM audit_events
+      WHERE action = 'ORDER_CANCELLED'
+        AND target_resource_id = $1
+    `,
+            [String(orderId)],
+        )
+
+        expect(result.rows).toEqual([
+            {
+                action: 'ORDER_CANCELLED',
+                actor_user_id: fulfillmentClient.user.id,
+                actor_username: fulfillmentClient.user.username,
+                actor_role: 'FULFILLMENT_OPERATOR',
+                target_resource_id: String(orderId),
+                previous_order_status: 'NEW',
+                new_order_status: 'CANCELLED',
+                previous_payment_status: 'AWAITING_PAYMENT',
+                new_payment_status: 'AWAITING_PAYMENT',
+                context: {},
+            },
+        ])
+    })
+
+    it('records only one terminal success event for concurrent lifecycle transitions', async () => {
+        const orderId = await createConfirmedOrder()
+
+        const processingResponse = await fulfillmentClient
+            .patch(`/api/orders/${orderId}/status`)
+            .send({
+                status: 'IN_PROGRESS',
+            })
+
+        expect(processingResponse.status).toBe(200)
+
+        const responses = await Promise.all([
+            fulfillmentClient
+                .patch(`/api/orders/${orderId}/status`)
+                .send({
+                    status: 'COMPLETED',
+                }),
+            fulfillmentClient
+                .patch(`/api/orders/${orderId}/status`)
+                .send({
+                    status: 'CANCELLED',
+                }),
+        ])
+
+        expect(
+            responses
+                .map((response) => response.status)
+                .sort(),
+        ).toEqual([200, 409])
+
+        const successfulResponse = responses.find(
+            (response) => response.status === 200,
+        )
+
+        if (!successfulResponse) {
+            throw new Error(
+                'Expected one successful terminal transition',
+            )
+        }
+
+        const expectedAction =
+            successfulResponse.body.status === 'COMPLETED'
+                ? 'ORDER_COMPLETED'
+                : 'ORDER_CANCELLED'
+
+        const result = await pool.query(
+            `
+      SELECT action
+      FROM audit_events
+      WHERE target_resource_id = $1
+        AND action IN (
+          'ORDER_COMPLETED',
+          'ORDER_CANCELLED'
+        )
+    `,
+            [String(orderId)],
+        )
+
+        expect(result.rows).toEqual([
+            {
+                action: expectedAction,
+            },
+        ])
+    })
+
+    it('rolls back a lifecycle transition when the audit insert fails', async () => {
+        const orderId = await createConfirmedOrder()
+        const constraintName =
+            'audit_lifecycle_test_failure'
+
+        await pool.query(`
+    ALTER TABLE audit_events
+    DROP CONSTRAINT IF EXISTS ${constraintName}
+  `)
+
+        await pool.query(`
+    ALTER TABLE audit_events
+    ADD CONSTRAINT ${constraintName}
+    CHECK (action <> 'ORDER_PROCESSING_STARTED')
+  `)
+
+        try {
+            const response = await fulfillmentClient
+                .patch(`/api/orders/${orderId}/status`)
+                .send({
+                    status: 'IN_PROGRESS',
+                })
+
+            expect(response.status).toBe(500)
+
+            expect(response.body).toEqual({
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: 'Unable to update order status.',
+                },
+            })
+
+            const orderResult = await pool.query(
+                `
+        SELECT status
+        FROM orders
+        WHERE id = $1
+      `,
+                [orderId],
+            )
+
+            expect(orderResult.rows[0].status).toBe('NEW')
+
+            const auditResult = await pool.query(
+                `
+        SELECT COUNT(*)::int AS count
+        FROM audit_events
+        WHERE action = 'ORDER_PROCESSING_STARTED'
+          AND target_resource_id = $1
+      `,
+                [String(orderId)],
+            )
+
+            expect(auditResult.rows[0].count).toBe(0)
+        } finally {
+            await pool.query(`
+      ALTER TABLE audit_events
+      DROP CONSTRAINT IF EXISTS ${constraintName}
+    `)
+        }
+    })
 })

@@ -3,6 +3,7 @@ import { pool } from './db.js'
 import { requireCsrf } from './auth/requireCsrf.js'
 import { requirePermission } from './auth/requirePermission.js'
 import { recordProductAuditEvent } from './audit/auditRepository.js'
+import type { PaymentStatus } from './payments/payment.js'
 
 import {
   canTransitionOrderStatus,
@@ -40,7 +41,7 @@ ordersRouter.post('/', requirePermission('ORDER_CREATE'), requireCsrf, async (re
   let transactionStarted = false
 
   try {
-    const actor =  request.authenticatedUser
+    const actor = request.authenticatedUser
 
     if (!actor) {
       throw new Error(
@@ -228,6 +229,13 @@ ordersRouter.patch('/:orderId/status', requirePermission('ORDER_STATUS_UPDATE'),
   let transactionStarted = false
 
   try {
+    const actor = request.authenticatedUser
+
+    if (!actor) {
+      throw new Error(
+        'Authenticated actor is missing from order status update',
+      )
+    }
     client = await pool.connect()
 
     await client.query('BEGIN')
@@ -317,6 +325,53 @@ ordersRouter.patch('/:orderId/status', requirePermission('ORDER_STATUS_UPDATE'),
 
     if (!updatedOrder) {
       throw new Error('Order status update returned no row')
+    }
+
+    const paymentStatus =
+      order.payment_status as PaymentStatus
+
+    switch (requestedStatus) {
+      case 'IN_PROGRESS':
+        await recordProductAuditEvent(client, {
+          action: 'ORDER_PROCESSING_STARTED',
+          actor,
+          orderId,
+          paymentStatus,
+        })
+        break
+
+      case 'COMPLETED':
+        await recordProductAuditEvent(client, {
+          action: 'ORDER_COMPLETED',
+          actor,
+          orderId,
+          paymentStatus,
+        })
+        break
+
+      case 'CANCELLED':
+        if (
+          currentStatus !== 'NEW' &&
+          currentStatus !== 'IN_PROGRESS'
+        ) {
+          throw new Error(
+            'Cancellation audit received an invalid previous status',
+          )
+        }
+
+        await recordProductAuditEvent(client, {
+          action: 'ORDER_CANCELLED',
+          actor,
+          orderId,
+          previousOrderStatus: currentStatus,
+          paymentStatus,
+        })
+        break
+
+      case 'NEW':
+        throw new Error(
+          'A successful lifecycle transition cannot target NEW',
+        )
     }
 
     await client.query('COMMIT')
