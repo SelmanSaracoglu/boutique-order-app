@@ -802,4 +802,240 @@ describe('Product audit events', () => {
 
         expect(productEventResult.rows[0].count).toBe(0)
     })
+
+    it('does not record processing success when payment state rejects the transition', async () => {
+        const createResponse = await authenticatedClient
+            .post('/api/orders')
+            .send({
+                orderSource: 'instagram',
+                customerIdentifier: '@rejected-audit-test',
+                items: [
+                    {
+                        supplierAlias: 'supplier-a',
+                        description: 'Rejected transition test item',
+                        quantity: 1,
+                        unitPrice: 25,
+                    },
+                ],
+            })
+
+        expect(createResponse.status).toBe(201)
+
+        const orderId = createResponse.body.id as number
+
+        const response = await fulfillmentClient
+            .patch(`/api/orders/${orderId}/status`)
+            .send({ status: 'IN_PROGRESS' })
+
+        expect(response.status).toBe(409)
+        expect(response.body).toEqual({
+            error: {
+                code: 'PAYMENT_NOT_CONFIRMED',
+                message:
+                    'Order payment must be confirmed before processing can start.',
+            },
+        })
+
+        const result = await pool.query(
+            `
+      SELECT COUNT(*)::int AS count
+      FROM audit_events
+      WHERE action = 'ORDER_PROCESSING_STARTED'
+        AND target_resource_id = $1
+    `,
+            [String(orderId)],
+        )
+
+        expect(result.rows[0].count).toBe(0)
+    })
+
+    it('does not record payment confirmation success for a forbidden actor', async () => {
+        const orderId = await createReportedOrder()
+
+        const response = await paymentReporterClient.post(
+            `/api/orders/${orderId}/payment-confirmation`,
+        )
+
+        expect(response.status).toBe(403)
+        expect(response.body).toEqual({
+            error: {
+                code: 'FORBIDDEN',
+                message:
+                    'You do not have permission to perform this action.',
+            },
+        })
+
+        const orderResult = await pool.query(
+            `
+      SELECT payment_status, payment_method
+      FROM orders
+      WHERE id = $1
+    `,
+            [orderId],
+        )
+
+        expect(orderResult.rows[0]).toEqual({
+            payment_status: 'REPORTED',
+            payment_method: 'BANK_TRANSFER',
+        })
+
+        const auditResult = await pool.query(
+            `
+      SELECT COUNT(*)::int AS count
+      FROM audit_events
+      WHERE action = 'PAYMENT_CONFIRMED'
+        AND target_resource_id = $1
+    `,
+            [String(orderId)],
+        )
+
+        expect(auditResult.rows[0].count).toBe(0)
+    })
+
+    it('preserves the actor snapshot after the user account changes', async () => {
+        const originalActor = authenticatedClient.user
+
+        const createResponse = await authenticatedClient
+            .post('/api/orders')
+            .send({
+                orderSource: 'instagram',
+                customerIdentifier: '@actor-snapshot-test',
+                items: [
+                    {
+                        supplierAlias: 'supplier-a',
+                        description: 'Actor snapshot test item',
+                        quantity: 1,
+                        unitPrice: 30,
+                    },
+                ],
+            })
+
+        expect(createResponse.status).toBe(201)
+
+        const orderId = createResponse.body.id as number
+        const changedUsername = `changed.user.${originalActor.id}`
+
+        await pool.query(
+            `
+      UPDATE users
+      SET
+        username = $1,
+        role = 'ORDER_OPERATOR'
+      WHERE id = $2
+    `,
+            [changedUsername, originalActor.id],
+        )
+
+        const currentUserResult = await pool.query(
+            `
+      SELECT username, role
+      FROM users
+      WHERE id = $1
+    `,
+            [originalActor.id],
+        )
+
+        expect(currentUserResult.rows[0]).toEqual({
+            username: changedUsername,
+            role: 'ORDER_OPERATOR',
+        })
+
+        const auditResult = await pool.query(
+            `
+      SELECT
+        actor_user_id,
+        actor_username,
+        actor_role
+      FROM audit_events
+      WHERE action = 'ORDER_CREATED'
+        AND target_resource_id = $1
+    `,
+            [String(orderId)],
+        )
+
+        expect(auditResult.rows[0]).toEqual({
+            actor_user_id: originalActor.id,
+            actor_username: originalActor.username,
+            actor_role: 'ADMIN',
+        })
+    })
+
+    it('rolls back payment reporting when the audit insert fails', async () => {
+        const createResponse = await authenticatedClient
+            .post('/api/orders')
+            .send({
+                orderSource: 'whatsapp',
+                customerIdentifier: '@payment-report-rollback-test',
+                items: [
+                    {
+                        supplierAlias: 'supplier-a',
+                        description: 'Payment rollback test item',
+                        quantity: 1,
+                        unitPrice: 40,
+                    },
+                ],
+            })
+
+        expect(createResponse.status).toBe(201)
+
+        const orderId = createResponse.body.id as number
+        const constraintName = 'audit_payment_report_test_failure'
+
+        await pool.query(`
+    ALTER TABLE audit_events
+    DROP CONSTRAINT IF EXISTS ${constraintName}
+  `)
+
+        await pool.query(`
+    ALTER TABLE audit_events
+    ADD CONSTRAINT ${constraintName}
+    CHECK (action <> 'PAYMENT_REPORTED')
+  `)
+
+        try {
+            const response = await paymentReporterClient
+                .post(`/api/orders/${orderId}/payment-report`)
+                .send({ paymentMethod: 'PAYPAL' })
+
+            expect(response.status).toBe(500)
+            expect(response.body).toEqual({
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: 'Unable to report payment.',
+                },
+            })
+
+            const orderResult = await pool.query(
+                `
+        SELECT payment_status, payment_method
+        FROM orders
+        WHERE id = $1
+      `,
+                [orderId],
+            )
+
+            expect(orderResult.rows[0]).toEqual({
+                payment_status: 'AWAITING_PAYMENT',
+                payment_method: null,
+            })
+
+            const auditResult = await pool.query(
+                `
+        SELECT COUNT(*)::int AS count
+        FROM audit_events
+        WHERE action = 'PAYMENT_REPORTED'
+          AND target_resource_id = $1
+      `,
+                [String(orderId)],
+            )
+
+            expect(auditResult.rows[0].count).toBe(0)
+        } finally {
+            await pool.query(`
+      ALTER TABLE audit_events
+      DROP CONSTRAINT IF EXISTS ${constraintName}
+    `)
+        }
+    })
+
 })
