@@ -4,13 +4,18 @@ import { authRouter } from './auth/authRouter.js'
 import { paymentRouter } from './payments/paymentRouter.js'
 import { sessionMiddleware } from './auth/session.js'
 import { requireAuthentication } from './auth/requireAuthentication.js'
+import { requestContextMiddleware } from './http/requestContext.js'
+import { accessLoggerMiddleware } from './logging/accessLogger.js'
 
 export const app = express()
 
+app.use(requestContextMiddleware)
+app.use(accessLoggerMiddleware)
 app.use(sessionMiddleware)
 app.use(express.json())
-app.use('/api/auth', authRouter)
-
+app.use(
+  '/api/auth', 
+  authRouter)
 app.use(
   '/api/orders',
   requireAuthentication,
