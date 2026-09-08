@@ -33,6 +33,10 @@ The application currently supports:
 - payment-confirmed processing gate for new orders,
 - automated API integration testing against PostgreSQL,
 - authenticated full-stack browser testing.
+- structured PostgreSQL product audit events,
+- transactional atomicity between business mutations and audit writes,
+- immutable actor identity snapshots at event occurrence time,
+- idempotent audit coverage initialization,
 
 ## Technology
 
@@ -76,6 +80,7 @@ boutique-order-app/
 │   │   ├── db/
 │   │   │   └── migrations/
 │   │   ├── src/
+|   |   |   ├── audit/
 │   │   │   ├── auth/
 │   │   │   └── scripts/
 │   │   ├── test/
@@ -451,7 +456,7 @@ The endpoint returns:
 
 - `400` for an invalid order ID or request body,
 - `404` when the order does not exist,
-- `409`  when the requested transition conflicts with the persisted status or payment state,
+- `409` when the requested transition conflicts with the persisted status or payment state,
 - controlled `500` JSON when persistence fails unexpectedly.
 
 Status decisions and updates run in a PostgreSQL transaction with row-level locking so concurrent requests are evaluated against the latest persisted status.
@@ -459,6 +464,39 @@ Status decisions and updates run in a PostgreSQL transaction with row-level lock
 The `NEW -> IN_PROGRESS` transition additionally requires the persisted payment status to be `CONFIRMED`. Payment reporting alone does not unlock processing, and payment confirmation does not automatically change the order status.
 
 Cancellation remains available for `NEW` orders regardless of payment status.
+
+## Transactional Product Audit
+
+Successful order and payment mutations produce structured records in the PostgreSQL `audit_events` table.
+
+The current product audit actions are:
+
+```text
+ORDER_CREATED
+PAYMENT_REPORTED
+PAYMENT_CONFIRMED
+ORDER_PROCESSING_STARTED
+ORDER_COMPLETED
+ORDER_CANCELLED
+```
+
+Each success event records:
+
+- an independent event ID and schema version,
+- a database-generated occurrence timestamp,
+- category, action, outcome, and severity,
+- the authenticated user's ID, username, and role as occurrence-time snapshots,
+- the target resource type and ID,
+- previous and new order or payment states when meaningful,
+- event-specific allowlisted context.
+
+Actor information is derived exclusively from the authenticated server-side session. Audit context is constructed explicitly and does not contain raw request bodies, complete order records, passwords, tokens, cookies, session identifiers, addresses, or telephone numbers.
+
+The business mutation and its audit insert use the same PostgreSQL transaction and database client. If the audit insert fails, the business mutation is rolled back. Validation failures, forbidden operations, rejected state transitions, idempotent repeats, and concurrency conflicts do not produce misleading success events.
+
+At API startup, the application idempotently creates one `AUDIT_LOGGING_STARTED` system event before accepting requests. This event uses `SYSTEM` actor semantics without inventing a user identity. Existing orders are not backfilled with synthetic historical events.
+
+This foundation does not yet provide an audit read API, user interface, security or error event persistence, SIEM integration, retention automation, or protection against a PostgreSQL database owner.
 
 ## Testing
 
@@ -496,7 +534,14 @@ The automated suites verify:
 - CSRF enforcement,
 - anonymous `401 Unauthorized`,
 - role-specific permissions,
-- controlled `403 Forbidden`.
+- controlled `403 Forbidden`,
+- one structured audit event per successful product mutation,
+- actor snapshots and previous/new state capture,
+- business rollback when an audit insert fails,
+- absence of success events for rejected and forbidden mutations,
+- duplicate-event prevention during idempotent and concurrent requests,
+- idempotent audit coverage initialization without historical backfill,
+- exclusion of sensitive and uncontrolled request payloads.
 
 ### Component Tests
 
@@ -528,7 +573,6 @@ Full-stack E2E tests use:
 - the real React application,
 - the running Express API,
 - PostgreSQL-backed users, orders, and sessions.
-
 
 Provision the required development users:
 
