@@ -1,32 +1,72 @@
 import { Router } from 'express'
-import { requireCsrf } from '../auth/requireCsrf.js'
-import { requirePermission } from '../auth/requirePermission.js'
-import { orderIdSchema } from '../orderValidation.js'
-import { reportPayment } from './reportPayment.js'
-import { reportPaymentSchema } from './paymentValidation.js'
-import { confirmPayment } from './confirmPayment.js'
+import {
+  recordRequestValidationFailure,
+} from '../audit/requestValidationAudit.js'
+import {
+  requireCsrf,
+} from '../auth/requireCsrf.js'
+import {
+  requirePermission,
+} from '../auth/requirePermission.js'
+import {
+  orderIdSchema,
+} from '../orderValidation.js'
+import {
+  confirmPayment,
+} from './confirmPayment.js'
+import {
+  reportPayment,
+} from './reportPayment.js'
+import {
+  reportPaymentSchema,
+} from './paymentValidation.js'
 
 export const paymentRouter = Router()
 
-paymentRouter.post('/:orderId/payment-confirmation',
+paymentRouter.post( '/:orderId/payment-confirmation',
   requirePermission('PAYMENT_CONFIRM'),
   requireCsrf,
   async (request, response) => {
     const orderIdValidationResult =
-      orderIdSchema.safeParse(request.params.orderId)
+      orderIdSchema.safeParse(
+        request.params.orderId,
+      )
 
-    if (!orderIdValidationResult.success) {
+    if (
+      !orderIdValidationResult.success
+    ) {
+      await recordRequestValidationFailure(
+        request,
+        {
+          operation:
+            'CONFIRM_PAYMENT',
+          reasonCode:
+            'INVALID_ORDER_ID',
+          target: {
+            resourceType: 'ORDER',
+            resourceId: String(
+              request.params.orderId ??
+                'missing',
+            ),
+          },
+        },
+      )
+
       return response.status(400).json({
         error: {
           code: 'INVALID_ORDER_ID',
-          message: 'Order ID is invalid.',
+          message:
+            'Order ID is invalid.',
         },
       })
     }
 
-    try {
+    const orderId =
+      orderIdValidationResult.data
 
-      const actor = request.authenticatedUser
+    try {
+      const actor =
+        request.authenticatedUser
 
       if (!actor) {
         throw new Error(
@@ -34,24 +74,31 @@ paymentRouter.post('/:orderId/payment-confirmation',
         )
       }
 
-      const result = await confirmPayment(
-        orderIdValidationResult.data,
-        actor,
-      )
+      const result =
+        await confirmPayment(
+          orderId,
+          actor,
+        )
 
-      if (result.outcome === 'not_found') {
+      if (
+        result.outcome === 'not_found'
+      ) {
         return response.status(404).json({
           error: {
             code: 'ORDER_NOT_FOUND',
-            message: 'Order was not found.',
+            message:
+              'Order was not found.',
           },
         })
       }
 
-      if (result.outcome === 'not_allowed') {
+      if (
+        result.outcome === 'not_allowed'
+      ) {
         return response.status(409).json({
           error: {
-            code: 'INVALID_PAYMENT_TRANSITION',
+            code:
+              'INVALID_PAYMENT_TRANSITION',
             message:
               'Payment cannot be confirmed for this order.',
           },
@@ -60,60 +107,114 @@ paymentRouter.post('/:orderId/payment-confirmation',
 
       return response.json({
         id: result.payment.id,
-        paymentStatus: result.payment.paymentStatus,
-        paymentMethod: result.payment.paymentMethod,
+        paymentStatus:
+          result.payment.paymentStatus,
+        paymentMethod:
+          result.payment.paymentMethod,
       })
     } catch (error) {
-      console.error('Failed to confirm payment', error)
+      console.error(
+        'Failed to confirm payment',
+        error,
+      )
 
       return response.status(500).json({
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Unable to confirm payment.',
+          message:
+            'Unable to confirm payment.',
         },
       })
     }
   },
 )
 
-paymentRouter.post('/:orderId/payment-report',
+paymentRouter.post( '/:orderId/payment-report',
   requirePermission('PAYMENT_REPORT'),
   requireCsrf,
   async (request, response) => {
     const orderIdValidationResult =
-      orderIdSchema.safeParse(request.params.orderId)
+      orderIdSchema.safeParse(
+        request.params.orderId,
+      )
 
-    if (!orderIdValidationResult.success) {
+    if (
+      !orderIdValidationResult.success
+    ) {
+      await recordRequestValidationFailure(
+        request,
+        {
+          operation:
+            'REPORT_PAYMENT',
+          reasonCode:
+            'INVALID_ORDER_ID',
+          target: {
+            resourceType: 'ORDER',
+            resourceId: String(
+              request.params.orderId ??
+                'missing',
+            ),
+          },
+        },
+      )
+
       return response.status(400).json({
         error: {
           code: 'INVALID_ORDER_ID',
-          message: 'Order ID is invalid.',
+          message:
+            'Order ID is invalid.',
         },
       })
     }
 
-    const inputValidationResult =
-      reportPaymentSchema.safeParse(request.body)
+    const orderId =
+      orderIdValidationResult.data
 
-    if (!inputValidationResult.success) {
+    const inputValidationResult =
+      reportPaymentSchema.safeParse(
+        request.body,
+      )
+
+    if (
+      !inputValidationResult.success
+    ) {
+      await recordRequestValidationFailure(
+        request,
+        {
+          operation:
+            'REPORT_PAYMENT',
+          reasonCode:
+            'VALIDATION_ERROR',
+          target: {
+            resourceType: 'ORDER',
+            resourceId:
+              String(orderId),
+          },
+        },
+      )
+
       return response.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Payment report input is invalid.',
+          message:
+            'Payment report input is invalid.',
           issues:
-            inputValidationResult.error.issues.map(
-              (issue) => ({
-                path: issue.path.join('.'),
-                message: issue.message,
-              }),
-            ),
+            inputValidationResult.error
+              .issues.map(
+                (issue) => ({
+                  path:
+                    issue.path.join('.'),
+                  message:
+                    issue.message,
+                }),
+              ),
         },
       })
     }
 
     try {
-
-      const actor = request.authenticatedUser
+      const actor =
+        request.authenticatedUser
 
       if (!actor) {
         throw new Error(
@@ -121,25 +222,33 @@ paymentRouter.post('/:orderId/payment-report',
         )
       }
 
-      const result = await reportPayment(
-        orderIdValidationResult.data,
-        inputValidationResult.data.paymentMethod,
-        actor,
-      )
+      const result =
+        await reportPayment(
+          orderId,
+          inputValidationResult.data
+            .paymentMethod,
+          actor,
+        )
 
-      if (result.outcome === 'not_found') {
+      if (
+        result.outcome === 'not_found'
+      ) {
         return response.status(404).json({
           error: {
             code: 'ORDER_NOT_FOUND',
-            message: 'Order was not found.',
+            message:
+              'Order was not found.',
           },
         })
       }
 
-      if (result.outcome === 'not_allowed') {
+      if (
+        result.outcome === 'not_allowed'
+      ) {
         return response.status(409).json({
           error: {
-            code: 'INVALID_PAYMENT_TRANSITION',
+            code:
+              'INVALID_PAYMENT_TRANSITION',
             message:
               'Payment cannot be reported for this order.',
           },
@@ -154,12 +263,16 @@ paymentRouter.post('/:orderId/payment-report',
           result.payment.paymentMethod,
       })
     } catch (error) {
-      console.error('Failed to report payment', error)
+      console.error(
+        'Failed to report payment',
+        error,
+      )
 
       return response.status(500).json({
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Unable to report payment.',
+          message:
+            'Unable to report payment.',
         },
       })
     }
