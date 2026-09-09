@@ -86,6 +86,19 @@ ordersRouter.post(
         )
       }
 
+      const productAuditRequest =
+        buildRequestAuditMetadata(
+          request,
+          {
+            operation: 'CREATE_ORDER',
+            route:
+              resolveRequestAuditRoute(
+                request,
+              ),
+            status: 201,
+          },
+        )
+
       client = await pool.connect()
 
       await client.query('BEGIN')
@@ -222,6 +235,8 @@ ordersRouter.post(
           action: 'ORDER_CREATED',
           actor,
           orderId: order.id,
+          request:
+            productAuditRequest,
           orderSource:
             order.order_source,
           itemCount:
@@ -484,6 +499,20 @@ ordersRouter.patch(
         })
       }
 
+      const productAuditRequest =
+        buildRequestAuditMetadata(
+          request,
+          {
+            operation:
+              'UPDATE_ORDER_STATUS',
+            route:
+              resolveRequestAuditRoute(
+                request,
+              ),
+            status: 200,
+          },
+        )
+
       const updateResult =
         await client.query(
           `
@@ -521,6 +550,8 @@ ordersRouter.patch(
                 'ORDER_PROCESSING_STARTED',
               actor,
               orderId,
+              request:
+                productAuditRequest,
               paymentStatus,
             },
           )
@@ -530,12 +561,14 @@ ordersRouter.patch(
           await recordProductAuditEvent(
             client,
             {
-              action:
-                'ORDER_COMPLETED',
+              action: 'ORDER_COMPLETED',
               actor,
               orderId,
+              request:
+                productAuditRequest,
               paymentStatus,
             },
+
           )
           break
 
@@ -553,10 +586,11 @@ ordersRouter.patch(
           await recordProductAuditEvent(
             client,
             {
-              action:
-                'ORDER_CANCELLED',
+              action: 'ORDER_CANCELLED',
               actor,
               orderId,
+              request:
+                productAuditRequest,
               previousOrderStatus:
                 currentStatus,
               paymentStatus,

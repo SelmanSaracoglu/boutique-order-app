@@ -150,7 +150,7 @@ describe('Product audit events', () => {
         const event = result.rows[0]
 
         expect(event).toMatchObject({
-            schema_version: 1,
+            schema_version: 2,
             category: 'PRODUCT',
             action: 'ORDER_CREATED',
             outcome: 'SUCCESS',

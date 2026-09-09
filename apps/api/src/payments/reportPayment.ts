@@ -1,6 +1,19 @@
-import type { PoolClient } from 'pg'
+import type {
+  PoolClient,
+} from 'pg'
+import type {
+  AuditActor,
+} from '../audit/auditEvent.js'
+import {
+  recordProductAuditEvent,
+} from '../audit/auditRepository.js'
+import type {
+  RequestAuditMetadata,
+} from '../audit/requestAuditEvent.js'
 import { pool } from '../db.js'
-import type { OrderStatus } from '../orderLifecycle.js'
+import type {
+  OrderStatus,
+} from '../orderLifecycle.js'
 import type {
   PaymentMethod,
   PaymentStatus,
@@ -11,32 +24,32 @@ import {
   type ReportedPayment,
 } from './paymentRepository.js'
 
-import { recordProductAuditEvent } from '../audit/auditRepository.js'
-import type { AuditActor } from '../audit/auditEvent.js'
-
-const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
-  'COMPLETED',
-  'CANCELLED',
-]
+const TERMINAL_ORDER_STATUSES:
+  readonly OrderStatus[] = [
+    'COMPLETED',
+    'CANCELLED',
+  ]
 
 export type ReportPaymentResult =
   | {
-    outcome: 'reported'
-    payment: ReportedPayment
-  }
+      outcome: 'reported'
+      payment: ReportedPayment
+    }
   | {
-    outcome: 'not_found'
-  }
+      outcome: 'not_found'
+    }
   | {
-    outcome: 'not_allowed'
-    orderStatus: OrderStatus
-    paymentStatus: PaymentStatus
-  }
+      outcome: 'not_allowed'
+      orderStatus: OrderStatus
+      paymentStatus: PaymentStatus
+    }
 
 export async function reportPayment(
   orderId: number,
   paymentMethod: PaymentMethod,
   actor: AuditActor,
+  requestMetadata:
+    RequestAuditMetadata,
 ): Promise<ReportPaymentResult> {
   let client: PoolClient | undefined
   let transactionStarted = false
@@ -47,10 +60,11 @@ export async function reportPayment(
     await client.query('BEGIN')
     transactionStarted = true
 
-    const order = await findPaymentOrderForUpdate(
-      client,
-      orderId,
-    )
+    const order =
+      await findPaymentOrderForUpdate(
+        client,
+        orderId,
+      )
 
     if (!order) {
       await client.query('ROLLBACK')
@@ -68,32 +82,41 @@ export async function reportPayment(
 
     if (
       orderIsTerminal ||
-      order.paymentStatus !== 'AWAITING_PAYMENT'
+      order.paymentStatus !==
+        'AWAITING_PAYMENT'
     ) {
       await client.query('ROLLBACK')
       transactionStarted = false
 
       return {
         outcome: 'not_allowed',
-        orderStatus: order.orderStatus,
-        paymentStatus: order.paymentStatus,
+        orderStatus:
+          order.orderStatus,
+        paymentStatus:
+          order.paymentStatus,
       }
     }
 
-    const payment = await persistReportedPayment(
+    const payment =
+      await persistReportedPayment(
+        client,
+        orderId,
+        paymentMethod,
+      )
+
+    await recordProductAuditEvent(
       client,
-      orderId,
-      paymentMethod,
+      {
+        action: 'PAYMENT_REPORTED',
+        actor,
+        orderId,
+        request: requestMetadata,
+        orderStatus:
+          order.orderStatus,
+        paymentMethod:
+          payment.paymentMethod,
+      },
     )
-
-    await recordProductAuditEvent(client, {
-      action: 'PAYMENT_REPORTED',
-      actor,
-      orderId,
-      orderStatus: order.orderStatus,
-      paymentMethod: payment.paymentMethod,
-    })
-
 
     await client.query('COMMIT')
     transactionStarted = false
@@ -103,9 +126,14 @@ export async function reportPayment(
       payment,
     }
   } catch (error) {
-    if (client && transactionStarted) {
+    if (
+      client &&
+      transactionStarted
+    ) {
       try {
-        await client.query('ROLLBACK')
+        await client.query(
+          'ROLLBACK',
+        )
       } catch (rollbackError) {
         console.error(
           'Failed to rollback payment report transaction',

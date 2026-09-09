@@ -1,5 +1,9 @@
 import { Router } from 'express'
 import {
+  buildRequestAuditMetadata,
+  resolveRequestAuditRoute,
+} from '../audit/auditRequestMetadata.js'
+import {
   recordRequestValidationFailure,
 } from '../audit/requestValidationAudit.js'
 import {
@@ -74,10 +78,25 @@ paymentRouter.post( '/:orderId/payment-confirmation',
         )
       }
 
+      const productAuditRequest =
+        buildRequestAuditMetadata(
+          request,
+          {
+            operation:
+              'CONFIRM_PAYMENT',
+            route:
+              resolveRequestAuditRoute(
+                request,
+              ),
+            status: 200,
+          },
+        )
+
       const result =
         await confirmPayment(
           orderId,
           actor,
+          productAuditRequest,
         )
 
       if (
@@ -222,12 +241,27 @@ paymentRouter.post( '/:orderId/payment-report',
         )
       }
 
+      const productAuditRequest =
+        buildRequestAuditMetadata(
+          request,
+          {
+            operation:
+              'REPORT_PAYMENT',
+            route:
+              resolveRequestAuditRoute(
+                request,
+              ),
+            status: 200,
+          },
+        )
+
       const result =
         await reportPayment(
           orderId,
           inputValidationResult.data
             .paymentMethod,
           actor,
+          productAuditRequest,
         )
 
       if (

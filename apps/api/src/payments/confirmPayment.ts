@@ -1,7 +1,22 @@
-import type { PoolClient } from 'pg'
+import type {
+  PoolClient,
+} from 'pg'
+import type {
+  AuditActor,
+} from '../audit/auditEvent.js'
+import {
+  recordProductAuditEvent,
+} from '../audit/auditRepository.js'
+import type {
+  RequestAuditMetadata,
+} from '../audit/requestAuditEvent.js'
 import { pool } from '../db.js'
-import type { OrderStatus } from '../orderLifecycle.js'
-import type { PaymentStatus } from './payment.js'
+import type {
+  OrderStatus,
+} from '../orderLifecycle.js'
+import type {
+  PaymentStatus,
+} from './payment.js'
 import {
   findPaymentOrderForUpdate,
   persistConfirmedPayment,
@@ -9,27 +24,25 @@ import {
   type PaymentOrder,
 } from './paymentRepository.js'
 
-import { recordProductAuditEvent } from '../audit/auditRepository.js'
-import type { AuditActor } from '../audit/auditEvent.js'
-
-const TERMINAL_ORDER_STATUSES: readonly OrderStatus[] = [
-  'COMPLETED',
-  'CANCELLED',
-]
+const TERMINAL_ORDER_STATUSES:
+  readonly OrderStatus[] = [
+    'COMPLETED',
+    'CANCELLED',
+  ]
 
 export type ConfirmPaymentResult =
   | {
-    outcome: 'confirmed'
-    payment: ConfirmedPayment
-  }
+      outcome: 'confirmed'
+      payment: ConfirmedPayment
+    }
   | {
-    outcome: 'not_found'
-  }
+      outcome: 'not_found'
+    }
   | {
-    outcome: 'not_allowed'
-    orderStatus: OrderStatus
-    paymentStatus: PaymentStatus
-  }
+      outcome: 'not_allowed'
+      orderStatus: OrderStatus
+      paymentStatus: PaymentStatus
+    }
 
 export function canConfirmPayment(
   order: PaymentOrder,
@@ -38,7 +51,8 @@ export function canConfirmPayment(
     !TERMINAL_ORDER_STATUSES.includes(
       order.orderStatus,
     ) &&
-    order.paymentStatus === 'REPORTED' &&
+    order.paymentStatus ===
+      'REPORTED' &&
     order.paymentMethod !== null
   )
 }
@@ -46,6 +60,8 @@ export function canConfirmPayment(
 export async function confirmPayment(
   orderId: number,
   actor: AuditActor,
+  requestMetadata:
+    RequestAuditMetadata,
 ): Promise<ConfirmPaymentResult> {
   let client: PoolClient | undefined
   let transactionStarted = false
@@ -56,10 +72,11 @@ export async function confirmPayment(
     await client.query('BEGIN')
     transactionStarted = true
 
-    const order = await findPaymentOrderForUpdate(
-      client,
-      orderId,
-    )
+    const order =
+      await findPaymentOrderForUpdate(
+        client,
+        orderId,
+      )
 
     if (!order) {
       await client.query('ROLLBACK')
@@ -76,23 +93,34 @@ export async function confirmPayment(
 
       return {
         outcome: 'not_allowed',
-        orderStatus: order.orderStatus,
-        paymentStatus: order.paymentStatus,
+        orderStatus:
+          order.orderStatus,
+        paymentStatus:
+          order.paymentStatus,
       }
     }
 
-    const payment = await persistConfirmedPayment(
+    const payment =
+      await persistConfirmedPayment(
+        client,
+        orderId,
+      )
+
+    await recordProductAuditEvent(
       client,
-      orderId,
+      {
+        action:
+          'PAYMENT_CONFIRMED',
+        actor,
+        orderId,
+        request: requestMetadata,
+        orderStatus:
+          order.orderStatus,
+        paymentMethod:
+          payment.paymentMethod,
+      },
     )
 
-    await recordProductAuditEvent(client, {
-      action: 'PAYMENT_CONFIRMED',
-      actor,
-      orderId,
-      orderStatus: order.orderStatus,
-      paymentMethod: payment.paymentMethod,
-    })
     await client.query('COMMIT')
     transactionStarted = false
 
@@ -101,9 +129,14 @@ export async function confirmPayment(
       payment,
     }
   } catch (error) {
-    if (client && transactionStarted) {
+    if (
+      client &&
+      transactionStarted
+    ) {
       try {
-        await client.query('ROLLBACK')
+        await client.query(
+          'ROLLBACK',
+        )
       } catch (rollbackError) {
         console.error(
           'Failed to rollback payment confirmation transaction',
