@@ -14,6 +14,7 @@ import { requireCsrf } from './requireCsrf.js'
 import { SESSION_COOKIE_NAME } from './session.js'
 
 const LOGIN_ROUTE = '/api/auth/login'
+const LOGOUT_ROUTE = '/api/auth/logout'
 
 const invalidCredentialsResponse = {
   error: {
@@ -54,8 +55,7 @@ function readAttemptedUsername(
 
 export const authRouter = Router()
 
-authRouter.post(
-  '/login',
+authRouter.post( '/login',
   async (request, response, next) => {
     try {
       const attemptedUsername =
@@ -218,8 +218,7 @@ authRouter.post(
   },
 )
 
-authRouter.get(
-  '/session',
+authRouter.get( '/session',
   requireAuthentication,
   (request, response, next) => {
     const authenticatedUser =
@@ -248,12 +247,20 @@ authRouter.get(
   },
 )
 
-authRouter.post(
-  '/logout',
+authRouter.post( '/logout',
   requireAuthentication,
   requireCsrf,
   async (request, response, next) => {
     try {
+      const authenticatedUser =
+        request.authenticatedUser
+
+      if (!authenticatedUser) {
+        throw new Error(
+          'Authenticated logout context is incomplete',
+        )
+      }
+
       await destroySession(request)
 
       response.clearCookie(
@@ -262,6 +269,31 @@ authRouter.post(
           path: '/',
         },
       )
+
+      await tryRecordSecurityAuditEvent({
+        action: 'AUTH_LOGOUT_SUCCEEDED',
+        actor: {
+          type: 'USER',
+          user: {
+            id: authenticatedUser.id,
+            username:
+              authenticatedUser.username,
+            role: authenticatedUser.role,
+          },
+        },
+        target: {
+          resourceType: 'SESSION',
+          resourceId: 'current',
+        },
+        request: buildRequestAuditMetadata(
+          request,
+          {
+            operation: 'AUTH_LOGOUT',
+            route: LOGOUT_ROUTE,
+            status: 204,
+          },
+        ),
+      })
 
       response.status(204).send()
     } catch (error) {
