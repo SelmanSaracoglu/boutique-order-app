@@ -3,6 +3,9 @@ import { buildRequestAuditMetadata } from '../audit/auditRequestMetadata.js'
 import { tryRecordSecurityAuditEvent } from '../audit/requestAuditRepository.js'
 import { authenticateUser } from './authenticateUser.js'
 import {
+  loginRateLimiter,
+} from './loginRateLimiter.js'
+import {
   destroySession,
   establishAuthenticatedSession,
 } from './sessionLifecycle.js'
@@ -16,6 +19,14 @@ const invalidCredentialsResponse = {
   error: {
     code: 'INVALID_CREDENTIALS',
     message: 'Invalid username or password.',
+  },
+}
+
+const loginRateLimitedResponse = {
+  error: {
+    code: 'LOGIN_RATE_LIMITED',
+    message:
+      'Too many login attempts. Try again later.',
   },
 }
 
@@ -50,10 +61,61 @@ authRouter.post(
       const attemptedUsername =
         readAttemptedUsername(request.body)
 
+      const sourceIp =
+        request.requestContext.sourceIp
+
+      const rateLimitDecision =
+        loginRateLimiter.check(
+          sourceIp,
+          attemptedUsername,
+        )
+
+      if (!rateLimitDecision.allowed) {
+        await tryRecordSecurityAuditEvent({
+          action:
+            'AUTH_LOGIN_RATE_LIMITED',
+          reasonCode:
+            'LOGIN_RATE_LIMIT_EXCEEDED',
+          attemptedUsername,
+          actor: {
+            type: 'ANONYMOUS',
+          },
+          target: {
+            resourceType: 'AUTHENTICATION',
+            resourceId: 'login',
+          },
+          request: buildRequestAuditMetadata(
+            request,
+            {
+              operation: 'AUTH_LOGIN',
+              route: LOGIN_ROUTE,
+              status: 429,
+            },
+          ),
+        })
+
+        response
+          .set(
+            'Retry-After',
+            String(
+              rateLimitDecision.retryAfterSeconds,
+            ),
+          )
+          .status(429)
+          .json(loginRateLimitedResponse)
+
+        return
+      }
+
       const authenticatedUser =
         await authenticateUser(request.body)
 
       if (!authenticatedUser) {
+        loginRateLimiter.recordFailure(
+          sourceIp,
+          attemptedUsername,
+        )
+
         await tryRecordSecurityAuditEvent({
           action: 'AUTH_LOGIN_FAILED',
           reasonCode: 'INVALID_CREDENTIALS',
@@ -99,7 +161,8 @@ authRouter.post(
             type: 'USER',
             user: {
               id: authenticatedUser.id,
-              username: authenticatedUser.username,
+              username:
+                authenticatedUser.username,
               role: authenticatedUser.role,
             },
           },
@@ -135,6 +198,11 @@ authRouter.post(
 
         return
       }
+
+      loginRateLimiter.reset(
+        sourceIp,
+        attemptedUsername,
+      )
 
       response.status(200).json({
         user: {
