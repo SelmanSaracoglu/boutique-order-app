@@ -7,6 +7,9 @@ import type {
 import {
   recordProductAuditEvent,
 } from '../audit/auditRepository.js'
+import {
+  tryRecordRejectedProductAuditEvent,
+} from '../audit/rejectedProductAuditRepository.js'
 import type {
   RequestAuditMetadata,
 } from '../audit/requestAuditEvent.js'
@@ -87,6 +90,24 @@ export async function reportPayment(
     ) {
       await client.query('ROLLBACK')
       transactionStarted = false
+
+      await tryRecordRejectedProductAuditEvent(
+        {
+          action: 'PAYMENT_REPORTED',
+          reasonCode:
+            'INVALID_PAYMENT_TRANSITION',
+          actor,
+          orderId,
+          currentOrderStatus:
+            order.orderStatus,
+          currentPaymentStatus:
+            order.paymentStatus,
+          request: {
+            ...requestMetadata,
+            status: 409,
+          },
+        },
+      )
 
       return {
         outcome: 'not_allowed',

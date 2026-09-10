@@ -391,6 +391,7 @@ describe('Product audit events', () => {
       SELECT COUNT(*)::int AS count
       FROM audit_events
       WHERE action = 'PAYMENT_CONFIRMED'
+      AND outcome = 'SUCCESS'
         AND target_resource_id = $1
     `,
             [String(orderId)],
@@ -661,6 +662,7 @@ describe('Product audit events', () => {
       SELECT action
       FROM audit_events
       WHERE target_resource_id = $1
+      AND outcome = 'SUCCESS'
         AND action IN (
           'ORDER_COMPLETED',
           'ORDER_CANCELLED'
@@ -841,6 +843,7 @@ describe('Product audit events', () => {
       SELECT COUNT(*)::int AS count
       FROM audit_events
       WHERE action = 'ORDER_PROCESSING_STARTED'
+      AND outcome = 'SUCCESS'
         AND target_resource_id = $1
     `,
             [String(orderId)],

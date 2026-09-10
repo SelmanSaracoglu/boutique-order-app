@@ -12,6 +12,9 @@ import {
   recordProductAuditEvent,
 } from '../audit/auditRepository.js'
 import {
+  tryRecordRejectedProductAuditEvent,
+} from '../audit/rejectedProductAuditRepository.js'
+import {
   recordRequestValidationFailure,
 } from '../audit/requestValidationAudit.js'
 import { pool } from '../db.js'
@@ -26,6 +29,29 @@ import {
 import type {
   PaymentStatus,
 } from '../payments/payment.js'
+
+type RejectedLifecycleAction =
+  | 'ORDER_PROCESSING_STARTED'
+  | 'ORDER_COMPLETED'
+  | 'ORDER_CANCELLED'
+
+function resolveRejectedLifecycleAction(
+  requestedStatus: OrderStatus,
+): RejectedLifecycleAction | null {
+  switch (requestedStatus) {
+    case 'IN_PROGRESS':
+      return 'ORDER_PROCESSING_STARTED'
+
+    case 'COMPLETED':
+      return 'ORDER_COMPLETED'
+
+    case 'CANCELLED':
+      return 'ORDER_CANCELLED'
+
+    case 'NEW':
+      return null
+  }
+}
 
 export const updateOrderStatusHandler:
   RequestHandler = async (
@@ -164,6 +190,9 @@ export const updateOrderStatusHandler:
       const currentStatus =
         order.status as OrderStatus
 
+      const paymentStatus =
+        order.payment_status as PaymentStatus
+
       if (
         currentStatus ===
         requestedStatus
@@ -186,6 +215,41 @@ export const updateOrderStatusHandler:
         await client.query('ROLLBACK')
         transactionStarted = false
 
+        const rejectionAction =
+          resolveRejectedLifecycleAction(
+            requestedStatus,
+          )
+
+        if (rejectionAction) {
+          await tryRecordRejectedProductAuditEvent(
+            {
+              action:
+                rejectionAction,
+              reasonCode:
+                'INVALID_STATUS_TRANSITION',
+              actor,
+              orderId,
+              currentOrderStatus:
+                currentStatus,
+              currentPaymentStatus:
+                paymentStatus,
+              request:
+                buildRequestAuditMetadata(
+                  request,
+                  {
+                    operation:
+                      'UPDATE_ORDER_STATUS',
+                    route:
+                      resolveRequestAuditRoute(
+                        request,
+                      ),
+                    status: 409,
+                  },
+                ),
+            },
+          )
+        }
+
         return response.status(409).json({
           error: {
             code:
@@ -200,11 +264,38 @@ export const updateOrderStatusHandler:
         currentStatus === 'NEW' &&
         requestedStatus ===
           'IN_PROGRESS' &&
-        order.payment_status !==
-          'CONFIRMED'
+        paymentStatus !== 'CONFIRMED'
       ) {
         await client.query('ROLLBACK')
         transactionStarted = false
+
+        await tryRecordRejectedProductAuditEvent(
+          {
+            action:
+              'ORDER_PROCESSING_STARTED',
+            reasonCode:
+              'PAYMENT_NOT_CONFIRMED',
+            actor,
+            orderId,
+            currentOrderStatus:
+              currentStatus,
+            currentPaymentStatus:
+              paymentStatus,
+            request:
+              buildRequestAuditMetadata(
+                request,
+                {
+                  operation:
+                    'UPDATE_ORDER_STATUS',
+                  route:
+                    resolveRequestAuditRoute(
+                      request,
+                    ),
+                  status: 409,
+                },
+              ),
+          },
+        )
 
         return response.status(409).json({
           error: {
@@ -254,9 +345,6 @@ export const updateOrderStatusHandler:
           'Order status update returned no row',
         )
       }
-
-      const paymentStatus =
-        order.payment_status as PaymentStatus
 
       switch (requestedStatus) {
         case 'IN_PROGRESS':
