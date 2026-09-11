@@ -400,10 +400,19 @@ describe('Payment confirmation API', () => {
 
             expect(response.status).toBe(500)
 
+            const requestId =
+                response.headers['x-request-id']
+
+            expect(requestId).toEqual(
+                expect.any(String),
+            )
+
             expect(response.body).toEqual({
                 error: {
                     code: 'INTERNAL_ERROR',
-                    message: 'Unable to confirm payment.',
+                    message:
+                        'An unexpected error occurred.',
+                    requestId,
                 },
             })
 

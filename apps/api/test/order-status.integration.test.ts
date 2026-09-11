@@ -373,11 +373,21 @@ describe('Order status API', () => {
         .patch(`/api/orders/${orderId}/status`)
         .send({ status: 'IN_PROGRESS' })
 
-      expect(response.status).toBe(500)
+            expect(response.status).toBe(500)
+
+      const requestId =
+        response.headers['x-request-id']
+
+      expect(requestId).toEqual(
+        expect.any(String),
+      )
+
       expect(response.body).toEqual({
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Unable to update order status.',
+          message:
+            'An unexpected error occurred.',
+          requestId,
         },
       })
 

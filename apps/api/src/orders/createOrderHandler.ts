@@ -273,27 +273,14 @@ export const createOrderHandler:
           await client.query(
             'ROLLBACK',
           )
-        } catch (rollbackError) {
-          console.error(
-            'Failed to rollback order transaction',
-            rollbackError,
-          )
+        } catch {
+          client.release(true)
+          client = undefined
         }
       }
 
-      console.error(
-        'Failed to create order',
-        error,
-      )
-
-      return response.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message:
-            'Unable to create order.',
-        },
-      })
+      throw error
     } finally {
       client?.release()
     }
-  }
+}

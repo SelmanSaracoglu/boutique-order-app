@@ -35,17 +35,17 @@ const TERMINAL_ORDER_STATUSES:
 
 export type ConfirmPaymentResult =
   | {
-      outcome: 'confirmed'
-      payment: ConfirmedPayment
-    }
+    outcome: 'confirmed'
+    payment: ConfirmedPayment
+  }
   | {
-      outcome: 'not_found'
-    }
+    outcome: 'not_found'
+  }
   | {
-      outcome: 'not_allowed'
-      orderStatus: OrderStatus
-      paymentStatus: PaymentStatus
-    }
+    outcome: 'not_allowed'
+    orderStatus: OrderStatus
+    paymentStatus: PaymentStatus
+  }
 
 export function canConfirmPayment(
   order: PaymentOrder,
@@ -55,7 +55,7 @@ export function canConfirmPayment(
       order.orderStatus,
     ) &&
     order.paymentStatus ===
-      'REPORTED' &&
+    'REPORTED' &&
     order.paymentMethod !== null
   )
 }
@@ -159,11 +159,9 @@ export async function confirmPayment(
         await client.query(
           'ROLLBACK',
         )
-      } catch (rollbackError) {
-        console.error(
-          'Failed to rollback payment confirmation transaction',
-          rollbackError,
-        )
+      } catch {
+        client.release(true)
+        client = undefined
       }
     }
 

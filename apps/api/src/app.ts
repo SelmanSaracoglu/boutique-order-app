@@ -1,9 +1,4 @@
-import express, {
-  type ErrorRequestHandler,
-} from 'express'
-import {
-  recordRequestValidationFailure,
-} from './audit/requestValidationAudit.js'
+import express from 'express'
 import { authRouter } from './auth/authRouter.js'
 import {
   requireAuthentication,
@@ -11,6 +6,9 @@ import {
 import {
   sessionMiddleware,
 } from './auth/session.js'
+import {
+  applicationErrorHandler,
+} from './http/applicationErrorHandler.js'
 import {
   requestContextMiddleware,
 } from './http/requestContext.js'
@@ -38,52 +36,4 @@ app.use(
   ordersRouter,
 )
 
-const errorHandler: ErrorRequestHandler =
-  async (
-    error,
-    request,
-    response,
-    _next,
-  ) => {
-    void _next
-
-    if (
-      error instanceof SyntaxError &&
-      'status' in error &&
-      error.status === 400
-    ) {
-      await recordRequestValidationFailure(
-        request,
-        {
-          operation:
-            'VALIDATE_REQUEST',
-          reasonCode: 'INVALID_JSON',
-        },
-      )
-
-      response.status(400).json({
-        error: {
-          code: 'INVALID_JSON',
-          message:
-            'Request body contains invalid JSON.',
-        },
-      })
-
-      return
-    }
-
-    console.error(
-      'Unhandled application error',
-      error,
-    )
-
-    response.status(500).json({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message:
-          'An unexpected error occurred.',
-      },
-    })
-  }
-
-app.use(errorHandler)
+app.use(applicationErrorHandler)

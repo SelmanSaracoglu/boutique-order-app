@@ -30,7 +30,7 @@ export const paymentRouter = Router()
 paymentRouter.post( '/:orderId/payment-confirmation',
   requirePermission('PAYMENT_CONFIRM'),
   requireCsrf,
-  async (request, response) => {
+  async (request, response, next) => {
     const orderIdValidationResult =
       orderIdSchema.safeParse(
         request.params.orderId,
@@ -132,18 +132,8 @@ paymentRouter.post( '/:orderId/payment-confirmation',
           result.payment.paymentMethod,
       })
     } catch (error) {
-      console.error(
-        'Failed to confirm payment',
-        error,
-      )
-
-      return response.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message:
-            'Unable to confirm payment.',
-        },
-      })
+      next(error)
+      return
     }
   },
 )
@@ -151,7 +141,7 @@ paymentRouter.post( '/:orderId/payment-confirmation',
 paymentRouter.post( '/:orderId/payment-report',
   requirePermission('PAYMENT_REPORT'),
   requireCsrf,
-  async (request, response) => {
+  async (request, response, next) => {
     const orderIdValidationResult =
       orderIdSchema.safeParse(
         request.params.orderId,
@@ -297,18 +287,8 @@ paymentRouter.post( '/:orderId/payment-report',
           result.payment.paymentMethod,
       })
     } catch (error) {
-      console.error(
-        'Failed to report payment',
-        error,
-      )
-
-      return response.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message:
-            'Unable to report payment.',
-        },
-      })
+      next(error)
+      return
     }
   },
 )

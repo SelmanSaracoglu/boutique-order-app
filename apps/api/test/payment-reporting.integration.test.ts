@@ -131,12 +131,22 @@ describe('Payment reporting API', () => {
                 })
 
             expect(response.status).toBe(500)
-            expect(response.body).toEqual({
-                error: {
-                    code: 'INTERNAL_ERROR',
-                    message: 'Unable to report payment.',
-                },
-            })
+
+const requestId =
+    response.headers['x-request-id']
+
+expect(requestId).toEqual(
+    expect.any(String),
+)
+
+expect(response.body).toEqual({
+    error: {
+        code: 'INTERNAL_ERROR',
+        message:
+            'An unexpected error occurred.',
+        requestId,
+    },
+})
 
             const persistedOrderResult = await pool.query(
                 `

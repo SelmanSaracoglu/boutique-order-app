@@ -1,166 +1,166 @@
 import type {
-  RequestHandler,
+    RequestHandler,
 } from 'express'
 import type {
-  PoolClient,
+    PoolClient,
 } from 'pg'
 import {
-  buildRequestAuditMetadata,
-  resolveRequestAuditRoute,
+    buildRequestAuditMetadata,
+    resolveRequestAuditRoute,
 } from '../audit/auditRequestMetadata.js'
 import {
-  recordProductAuditEvent,
+    recordProductAuditEvent,
 } from '../audit/auditRepository.js'
 import {
-  tryRecordRejectedProductAuditEvent,
+    tryRecordRejectedProductAuditEvent,
 } from '../audit/rejectedProductAuditRepository.js'
 import {
-  recordRequestValidationFailure,
+    recordRequestValidationFailure,
 } from '../audit/requestValidationAudit.js'
 import { pool } from '../db.js'
 import {
-  canTransitionOrderStatus,
-  type OrderStatus,
+    canTransitionOrderStatus,
+    type OrderStatus,
 } from '../orderLifecycle.js'
 import {
-  orderIdSchema,
-  updateOrderStatusSchema,
+    orderIdSchema,
+    updateOrderStatusSchema,
 } from '../orderValidation.js'
 import type {
-  PaymentStatus,
+    PaymentStatus,
 } from '../payments/payment.js'
 
 type RejectedLifecycleAction =
-  | 'ORDER_PROCESSING_STARTED'
-  | 'ORDER_COMPLETED'
-  | 'ORDER_CANCELLED'
+    | 'ORDER_PROCESSING_STARTED'
+    | 'ORDER_COMPLETED'
+    | 'ORDER_CANCELLED'
 
 function resolveRejectedLifecycleAction(
-  requestedStatus: OrderStatus,
+    requestedStatus: OrderStatus,
 ): RejectedLifecycleAction | null {
-  switch (requestedStatus) {
-    case 'IN_PROGRESS':
-      return 'ORDER_PROCESSING_STARTED'
+    switch (requestedStatus) {
+        case 'IN_PROGRESS':
+            return 'ORDER_PROCESSING_STARTED'
 
-    case 'COMPLETED':
-      return 'ORDER_COMPLETED'
+        case 'COMPLETED':
+            return 'ORDER_COMPLETED'
 
-    case 'CANCELLED':
-      return 'ORDER_CANCELLED'
+        case 'CANCELLED':
+            return 'ORDER_CANCELLED'
 
-    case 'NEW':
-      return null
-  }
+        case 'NEW':
+            return null
+    }
 }
 
 export const updateOrderStatusHandler:
-  RequestHandler = async (
-    request,
-    response,
-  ) => {
-    const orderIdValidationResult =
-      orderIdSchema.safeParse(
-        request.params.orderId,
-      )
-
-    if (
-      !orderIdValidationResult.success
-    ) {
-      await recordRequestValidationFailure(
+    RequestHandler = async (
         request,
-        {
-          operation:
-            'UPDATE_ORDER_STATUS',
-          reasonCode:
-            'INVALID_ORDER_ID',
-          target: {
-            resourceType: 'ORDER',
-            resourceId: String(
-              request.params.orderId ??
-                'missing',
-            ),
-          },
-        },
-      )
+        response,
+    ) => {
+        const orderIdValidationResult =
+            orderIdSchema.safeParse(
+                request.params.orderId,
+            )
 
-      return response.status(400).json({
-        error: {
-          code: 'INVALID_ORDER_ID',
-          message:
-            'Order ID is invalid.',
-        },
-      })
-    }
+        if (
+            !orderIdValidationResult.success
+        ) {
+            await recordRequestValidationFailure(
+                request,
+                {
+                    operation:
+                        'UPDATE_ORDER_STATUS',
+                    reasonCode:
+                        'INVALID_ORDER_ID',
+                    target: {
+                        resourceType: 'ORDER',
+                        resourceId: String(
+                            request.params.orderId ??
+                            'missing',
+                        ),
+                    },
+                },
+            )
 
-    const orderId =
-      orderIdValidationResult.data
+            return response.status(400).json({
+                error: {
+                    code: 'INVALID_ORDER_ID',
+                    message:
+                        'Order ID is invalid.',
+                },
+            })
+        }
 
-    const inputValidationResult =
-      updateOrderStatusSchema.safeParse(
-        request.body,
-      )
+        const orderId =
+            orderIdValidationResult.data
 
-    if (
-      !inputValidationResult.success
-    ) {
-      await recordRequestValidationFailure(
-        request,
-        {
-          operation:
-            'UPDATE_ORDER_STATUS',
-          reasonCode:
-            'VALIDATION_ERROR',
-          target: {
-            resourceType: 'ORDER',
-            resourceId:
-              String(orderId),
-          },
-        },
-      )
+        const inputValidationResult =
+            updateOrderStatusSchema.safeParse(
+                request.body,
+            )
 
-      return response.status(400).json({
-        error: {
-          code: 'VALIDATION_ERROR',
-          message:
-            'Order status input is invalid.',
-          issues:
-            inputValidationResult.error
-              .issues.map(
-                (issue) => ({
-                  path:
-                    issue.path.join('.'),
-                  message:
-                    issue.message,
-                }),
-              ),
-        },
-      })
-    }
+        if (
+            !inputValidationResult.success
+        ) {
+            await recordRequestValidationFailure(
+                request,
+                {
+                    operation:
+                        'UPDATE_ORDER_STATUS',
+                    reasonCode:
+                        'VALIDATION_ERROR',
+                    target: {
+                        resourceType: 'ORDER',
+                        resourceId:
+                            String(orderId),
+                    },
+                },
+            )
 
-    const requestedStatus =
-      inputValidationResult.data.status
+            return response.status(400).json({
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message:
+                        'Order status input is invalid.',
+                    issues:
+                        inputValidationResult.error
+                            .issues.map(
+                                (issue) => ({
+                                    path:
+                                        issue.path.join('.'),
+                                    message:
+                                        issue.message,
+                                }),
+                            ),
+                },
+            })
+        }
 
-    let client: PoolClient | undefined
-    let transactionStarted = false
+        const requestedStatus =
+            inputValidationResult.data.status
 
-    try {
-      const actor =
-        request.authenticatedUser
+        let client: PoolClient | undefined
+        let transactionStarted = false
 
-      if (!actor) {
-        throw new Error(
-          'Authenticated actor is missing from order status update',
-        )
-      }
+        try {
+            const actor =
+                request.authenticatedUser
 
-      client = await pool.connect()
+            if (!actor) {
+                throw new Error(
+                    'Authenticated actor is missing from order status update',
+                )
+            }
 
-      await client.query('BEGIN')
-      transactionStarted = true
+            client = await pool.connect()
 
-      const orderResult =
-        await client.query(
-          `
+            await client.query('BEGIN')
+            transactionStarted = true
+
+            const orderResult =
+                await client.query(
+                    `
             SELECT
               id,
               status,
@@ -169,161 +169,161 @@ export const updateOrderStatusHandler:
             WHERE id = $1
             FOR UPDATE
           `,
-          [orderId],
-        )
+                    [orderId],
+                )
 
-      const order = orderResult.rows[0]
+            const order = orderResult.rows[0]
 
-      if (!order) {
-        await client.query('ROLLBACK')
-        transactionStarted = false
+            if (!order) {
+                await client.query('ROLLBACK')
+                transactionStarted = false
 
-        return response.status(404).json({
-          error: {
-            code: 'ORDER_NOT_FOUND',
-            message:
-              'Order was not found.',
-          },
-        })
-      }
+                return response.status(404).json({
+                    error: {
+                        code: 'ORDER_NOT_FOUND',
+                        message:
+                            'Order was not found.',
+                    },
+                })
+            }
 
-      const currentStatus =
-        order.status as OrderStatus
+            const currentStatus =
+                order.status as OrderStatus
 
-      const paymentStatus =
-        order.payment_status as PaymentStatus
+            const paymentStatus =
+                order.payment_status as PaymentStatus
 
-      if (
-        currentStatus ===
-        requestedStatus
-      ) {
-        await client.query('COMMIT')
-        transactionStarted = false
+            if (
+                currentStatus ===
+                requestedStatus
+            ) {
+                await client.query('COMMIT')
+                transactionStarted = false
 
-        return response.json({
-          id: order.id,
-          status: currentStatus,
-        })
-      }
+                return response.json({
+                    id: order.id,
+                    status: currentStatus,
+                })
+            }
 
-      if (
-        !canTransitionOrderStatus(
-          currentStatus,
-          requestedStatus,
-        )
-      ) {
-        await client.query('ROLLBACK')
-        transactionStarted = false
+            if (
+                !canTransitionOrderStatus(
+                    currentStatus,
+                    requestedStatus,
+                )
+            ) {
+                await client.query('ROLLBACK')
+                transactionStarted = false
 
-        const rejectionAction =
-          resolveRejectedLifecycleAction(
-            requestedStatus,
-          )
+                const rejectionAction =
+                    resolveRejectedLifecycleAction(
+                        requestedStatus,
+                    )
 
-        if (rejectionAction) {
-          await tryRecordRejectedProductAuditEvent(
-            {
-              action:
-                rejectionAction,
-              reasonCode:
-                'INVALID_STATUS_TRANSITION',
-              actor,
-              orderId,
-              currentOrderStatus:
-                currentStatus,
-              currentPaymentStatus:
-                paymentStatus,
-              request:
+                if (rejectionAction) {
+                    await tryRecordRejectedProductAuditEvent(
+                        {
+                            action:
+                                rejectionAction,
+                            reasonCode:
+                                'INVALID_STATUS_TRANSITION',
+                            actor,
+                            orderId,
+                            currentOrderStatus:
+                                currentStatus,
+                            currentPaymentStatus:
+                                paymentStatus,
+                            request:
+                                buildRequestAuditMetadata(
+                                    request,
+                                    {
+                                        operation:
+                                            'UPDATE_ORDER_STATUS',
+                                        route:
+                                            resolveRequestAuditRoute(
+                                                request,
+                                            ),
+                                        status: 409,
+                                    },
+                                ),
+                        },
+                    )
+                }
+
+                return response.status(409).json({
+                    error: {
+                        code:
+                            'INVALID_STATUS_TRANSITION',
+                        message:
+                            `Order cannot transition from ${currentStatus} to ${requestedStatus}.`,
+                    },
+                })
+            }
+
+            if (
+                currentStatus === 'NEW' &&
+                requestedStatus ===
+                'IN_PROGRESS' &&
+                paymentStatus !== 'CONFIRMED'
+            ) {
+                await client.query('ROLLBACK')
+                transactionStarted = false
+
+                await tryRecordRejectedProductAuditEvent(
+                    {
+                        action:
+                            'ORDER_PROCESSING_STARTED',
+                        reasonCode:
+                            'PAYMENT_NOT_CONFIRMED',
+                        actor,
+                        orderId,
+                        currentOrderStatus:
+                            currentStatus,
+                        currentPaymentStatus:
+                            paymentStatus,
+                        request:
+                            buildRequestAuditMetadata(
+                                request,
+                                {
+                                    operation:
+                                        'UPDATE_ORDER_STATUS',
+                                    route:
+                                        resolveRequestAuditRoute(
+                                            request,
+                                        ),
+                                    status: 409,
+                                },
+                            ),
+                    },
+                )
+
+                return response.status(409).json({
+                    error: {
+                        code:
+                            'PAYMENT_NOT_CONFIRMED',
+                        message:
+                            'Order payment must be confirmed before processing can start.',
+                    },
+                })
+            }
+
+            const productAuditRequest =
                 buildRequestAuditMetadata(
-                  request,
-                  {
-                    operation:
-                      'UPDATE_ORDER_STATUS',
-                    route:
-                      resolveRequestAuditRoute(
-                        request,
-                      ),
-                    status: 409,
-                  },
-                ),
-            },
-          )
-        }
+                    request,
+                    {
+                        operation:
+                            'UPDATE_ORDER_STATUS',
+                        route:
+                            resolveRequestAuditRoute(
+                                request,
+                            ),
+                        status: 200,
+                    },
+                )
 
-        return response.status(409).json({
-          error: {
-            code:
-              'INVALID_STATUS_TRANSITION',
-            message:
-              `Order cannot transition from ${currentStatus} to ${requestedStatus}.`,
-          },
-        })
-      }
-
-      if (
-        currentStatus === 'NEW' &&
-        requestedStatus ===
-          'IN_PROGRESS' &&
-        paymentStatus !== 'CONFIRMED'
-      ) {
-        await client.query('ROLLBACK')
-        transactionStarted = false
-
-        await tryRecordRejectedProductAuditEvent(
-          {
-            action:
-              'ORDER_PROCESSING_STARTED',
-            reasonCode:
-              'PAYMENT_NOT_CONFIRMED',
-            actor,
-            orderId,
-            currentOrderStatus:
-              currentStatus,
-            currentPaymentStatus:
-              paymentStatus,
-            request:
-              buildRequestAuditMetadata(
-                request,
-                {
-                  operation:
-                    'UPDATE_ORDER_STATUS',
-                  route:
-                    resolveRequestAuditRoute(
-                      request,
-                    ),
-                  status: 409,
-                },
-              ),
-          },
-        )
-
-        return response.status(409).json({
-          error: {
-            code:
-              'PAYMENT_NOT_CONFIRMED',
-            message:
-              'Order payment must be confirmed before processing can start.',
-          },
-        })
-      }
-
-      const productAuditRequest =
-        buildRequestAuditMetadata(
-          request,
-          {
-            operation:
-              'UPDATE_ORDER_STATUS',
-            route:
-              resolveRequestAuditRoute(
-                request,
-              ),
-            status: 200,
-          },
-        )
-
-      const updateResult =
-        await client.query(
-          `
+            const updateResult =
+                await client.query(
+                    `
             UPDATE orders
             SET status = $1
             WHERE id = $2
@@ -331,123 +331,110 @@ export const updateOrderStatusHandler:
               id,
               status
           `,
-          [
-            requestedStatus,
-            orderId,
-          ],
-        )
+                    [
+                        requestedStatus,
+                        orderId,
+                    ],
+                )
 
-      const updatedOrder =
-        updateResult.rows[0]
+            const updatedOrder =
+                updateResult.rows[0]
 
-      if (!updatedOrder) {
-        throw new Error(
-          'Order status update returned no row',
-        )
-      }
+            if (!updatedOrder) {
+                throw new Error(
+                    'Order status update returned no row',
+                )
+            }
 
-      switch (requestedStatus) {
-        case 'IN_PROGRESS':
-          await recordProductAuditEvent(
-            client,
-            {
-              action:
-                'ORDER_PROCESSING_STARTED',
-              actor,
-              orderId,
-              request:
-                productAuditRequest,
-              paymentStatus,
-            },
-          )
-          break
+            switch (requestedStatus) {
+                case 'IN_PROGRESS':
+                    await recordProductAuditEvent(
+                        client,
+                        {
+                            action:
+                                'ORDER_PROCESSING_STARTED',
+                            actor,
+                            orderId,
+                            request:
+                                productAuditRequest,
+                            paymentStatus,
+                        },
+                    )
+                    break
 
-        case 'COMPLETED':
-          await recordProductAuditEvent(
-            client,
-            {
-              action:
-                'ORDER_COMPLETED',
-              actor,
-              orderId,
-              request:
-                productAuditRequest,
-              paymentStatus,
-            },
-          )
-          break
+                case 'COMPLETED':
+                    await recordProductAuditEvent(
+                        client,
+                        {
+                            action:
+                                'ORDER_COMPLETED',
+                            actor,
+                            orderId,
+                            request:
+                                productAuditRequest,
+                            paymentStatus,
+                        },
+                    )
+                    break
 
-        case 'CANCELLED':
-          if (
-            currentStatus !== 'NEW' &&
-            currentStatus !==
-              'IN_PROGRESS'
-          ) {
-            throw new Error(
-              'Cancellation audit received an invalid previous status',
-            )
-          }
+                case 'CANCELLED':
+                    if (
+                        currentStatus !== 'NEW' &&
+                        currentStatus !==
+                        'IN_PROGRESS'
+                    ) {
+                        throw new Error(
+                            'Cancellation audit received an invalid previous status',
+                        )
+                    }
 
-          await recordProductAuditEvent(
-            client,
-            {
-              action:
-                'ORDER_CANCELLED',
-              actor,
-              orderId,
-              request:
-                productAuditRequest,
-              previousOrderStatus:
-                currentStatus,
-              paymentStatus,
-            },
-          )
-          break
+                    await recordProductAuditEvent(
+                        client,
+                        {
+                            action:
+                                'ORDER_CANCELLED',
+                            actor,
+                            orderId,
+                            request:
+                                productAuditRequest,
+                            previousOrderStatus:
+                                currentStatus,
+                            paymentStatus,
+                        },
+                    )
+                    break
 
-        case 'NEW':
-          throw new Error(
-            'A successful lifecycle transition cannot target NEW',
-          )
-      }
+                case 'NEW':
+                    throw new Error(
+                        'A successful lifecycle transition cannot target NEW',
+                    )
+            }
 
-      await client.query('COMMIT')
-      transactionStarted = false
+            await client.query('COMMIT')
+            transactionStarted = false
 
-      return response.json({
-        id: updatedOrder.id,
-        status:
-          updatedOrder.status,
-      })
-    } catch (error) {
-      if (
-        client &&
-        transactionStarted
-      ) {
-        try {
-          await client.query(
-            'ROLLBACK',
-          )
-        } catch (rollbackError) {
-          console.error(
-            'Failed to rollback order status transaction',
-            rollbackError,
-          )
+            return response.json({
+                id: updatedOrder.id,
+                status:
+                    updatedOrder.status,
+            })
+        } catch (error) {
+            if (
+                client &&
+                transactionStarted
+            ) {
+                try {
+                    await client.query(
+                        'ROLLBACK',
+                    )
+                } catch {
+                    client.release(true)
+                    client = undefined
+                }
+            }
+
+            throw error
+        } finally {
+            client?.release()
         }
-      }
-
-      console.error(
-        'Failed to update order status',
-        error,
-      )
-
-      return response.status(500).json({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message:
-            'Unable to update order status.',
-        },
-      })
-    } finally {
-      client?.release()
     }
-  }

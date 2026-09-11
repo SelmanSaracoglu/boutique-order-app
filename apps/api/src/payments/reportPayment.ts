@@ -35,17 +35,17 @@ const TERMINAL_ORDER_STATUSES:
 
 export type ReportPaymentResult =
   | {
-      outcome: 'reported'
-      payment: ReportedPayment
-    }
+    outcome: 'reported'
+    payment: ReportedPayment
+  }
   | {
-      outcome: 'not_found'
-    }
+    outcome: 'not_found'
+  }
   | {
-      outcome: 'not_allowed'
-      orderStatus: OrderStatus
-      paymentStatus: PaymentStatus
-    }
+    outcome: 'not_allowed'
+    orderStatus: OrderStatus
+    paymentStatus: PaymentStatus
+  }
 
 export async function reportPayment(
   orderId: number,
@@ -86,7 +86,7 @@ export async function reportPayment(
     if (
       orderIsTerminal ||
       order.paymentStatus !==
-        'AWAITING_PAYMENT'
+      'AWAITING_PAYMENT'
     ) {
       await client.query('ROLLBACK')
       transactionStarted = false
@@ -155,11 +155,9 @@ export async function reportPayment(
         await client.query(
           'ROLLBACK',
         )
-      } catch (rollbackError) {
-        console.error(
-          'Failed to rollback payment report transaction',
-          rollbackError,
-        )
+      } catch {
+        client.release(true)
+        client = undefined
       }
     }
 
