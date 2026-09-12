@@ -37,6 +37,15 @@ The application currently supports:
 - transactional atomicity between business mutations and audit writes,
 - immutable actor identity snapshots at event occurrence time,
 - idempotent audit coverage initialization,
+- authenticated full-stack browser testing,
+- structured PostgreSQL product, security, error, and system audit events,
+- transactional atomicity between business mutations and audit writes,
+- immutable actor identity snapshots at event occurrence time,
+- request correlation and sanitized application error telemetry,
+- an admin-only Audit Log page and read API,
+- deterministic cursor-based audit pagination and targeted filtering,
+- append-only protection for normal application database credentials,
+- externally scheduled 12-month audit retention.
 
 ## Technology
 
@@ -141,10 +150,22 @@ POSTGRES_DB
 POSTGRES_USER
 POSTGRES_PASSWORD
 PORT
+MIGRATION_DATABASE_URL
 DATABASE_URL
+AUDIT_RETENTION_DATABASE_URL
 TEST_DATABASE_URL
 SESSION_SECRET
 ```
+
+`MIGRATION_DATABASE_URL` uses the trusted database owner credential and is used only for migrations and CLI-based user provisioning.
+
+`DATABASE_URL` is used by the running API and must use a dedicated login that inherits the `boutique_app_runtime` role.
+
+`AUDIT_RETENTION_DATABASE_URL` is used only by the dedicated retention command and must use a login that inherits the `boutique_audit_retention` role.
+
+`TEST_DATABASE_URL` uses the test database owner because the integration suites create fixtures, truncate tables, and verify database constraints directly.
+
+Secrets and local environment files must not be committed.
 
 `SESSION_SECRET` must contain a strong local secret and must not be committed.
 
@@ -184,6 +205,62 @@ apps/api/db/migrations
 ```
 
 Applied migrations are tracked in the `schema_migrations` table.
+
+### Database Role Boundary
+
+Migration `010_add_audit_role_boundaries.sql` creates two `NOLOGIN` permission roles:
+
+- `boutique_app_runtime` for the running API,
+- `boutique_audit_retention` for the dedicated retention operation.
+
+Deployment environments must provide separate login roles and attach each login to the appropriate permission role. A local development setup can create them through the database owner:
+
+```bash
+docker compose exec postgres psql -U boutique_app -d boutique_orders
+```
+
+```sql
+CREATE ROLE boutique_runtime_login
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  INHERIT
+  NOREPLICATION
+  NOBYPASSRLS;
+
+GRANT boutique_app_runtime
+  TO boutique_runtime_login;
+
+CREATE ROLE boutique_retention_login
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  INHERIT
+  NOREPLICATION
+  NOBYPASSRLS;
+
+GRANT boutique_audit_retention
+  TO boutique_retention_login;
+```
+
+Set the passwords through masked `psql` prompts:
+
+```text
+\password boutique_runtime_login
+\password boutique_retention_login
+```
+
+The local environment then uses:
+
+```dotenv
+MIGRATION_DATABASE_URL=postgresql://boutique_app:owner_password@127.0.0.1:5433/boutique_orders
+DATABASE_URL=postgresql://boutique_runtime_login:runtime_password@127.0.0.1:5433/boutique_orders
+AUDIT_RETENTION_DATABASE_URL=postgresql://boutique_retention_login:retention_password@127.0.0.1:5433/boutique_orders
+```
+
+The database owner credential must not be used by the running API.
 
 Stop PostgreSQL:
 
@@ -271,6 +348,9 @@ Order permissions are enforced server-side.
 | Update order status     | Allowed   | Allowed          | Forbidden          | Allowed                |
 | Report customer payment | Forbidden | Allowed          | Allowed            | Forbidden              |
 | Confirm payment         | Forbidden | Forbidden        | Allowed            | Forbidden              |
+| View Audit Log          | Allowed   | Forbidden        | Forbidden          | Forbidden              |
+
+Only `ADMIN` users receive the `AUDIT_READ` permission. The Dashboard shows the `Audit Log` navigation link only to an authorized administrator. The `/audit` route and `GET /api/audit-events` remain server-authorized, so bypassing frontend visibility still results in a controlled `403 Forbidden`.
 
 The frontend reflects this matrix by hiding unavailable actions and redirecting users away from protected routes.
 
@@ -314,6 +394,8 @@ PATCH /api/orders/:orderId/status
 
 POST  /api/orders/:orderId/payment-report
 POST  /api/orders/:orderId/payment-confirmation
+
+GET   /api/audit-events
 
 ```
 
@@ -465,38 +547,125 @@ The `NEW -> IN_PROGRESS` transition additionally requires the persisted payment 
 
 Cancellation remains available for `NEW` orders regardless of payment status.
 
-## Transactional Product Audit
-
-Successful order and payment mutations produce structured records in the PostgreSQL `audit_events` table.
-
-The current product audit actions are:
+### Audit Events
 
 ```text
-ORDER_CREATED
-PAYMENT_REPORTED
-PAYMENT_CONFIRMED
-ORDER_PROCESSING_STARTED
-ORDER_COMPLETED
-ORDER_CANCELLED
+GET /api/audit-events
 ```
 
-Each success event records:
+Requires an authenticated `ADMIN` user with the `AUDIT_READ` permission.
 
-- an independent event ID and schema version,
-- a database-generated occurrence timestamp,
+The endpoint supports:
+
+- category filters for `PRODUCT`, `SECURITY`, and `ERROR`,
+- `SUCCESS`, `FAILURE`, and `REJECTED` outcome filters,
+- inclusive ISO timestamp boundaries through `from` and `to`,
+- exact username, order ID, and request ID searches,
+- page limits between 1 and 100,
+- opaque cursor-based pagination.
+
+Omitting the category displays all events, including system events.
+
+Events are ordered deterministically by:
+
+```text
+occurred_at DESC, id DESC
+```
+
+The response contains only an explicit allowlist of sanitized summary and detail fields. Raw stack traces, SQL, tokens, cookies, session identifiers, request bodies, customer contact details, addresses, and uncontrolled context objects are not returned.
+
+Each successful audit read records one `AUDIT_LOG_VIEWED` security event. The read page is selected before that event is inserted in the same transaction, preventing recursive inclusion in its own response.
+
+## Audit Logging
+
+Structured audit events are stored in PostgreSQL through the `audit_events` table.
+
+The audit model covers:
+
+- successful and rejected product operations,
+- authentication and session security events,
+- authorization, CSRF, rate-limit, and request-validation failures,
+- order detail and Audit Log views,
+- sanitized unexpected application errors,
+- audit lifecycle system events.
+
+Each event contains an allowlisted combination of:
+
+- event ID, schema version, and occurrence timestamp,
 - category, action, outcome, and severity,
-- the authenticated user's ID, username, and role as occurrence-time snapshots,
-- the target resource type and ID,
-- previous and new order or payment states when meaningful,
-- event-specific allowlisted context.
+- occurrence-time actor snapshots,
+- target resource type and ID,
+- server-generated request ID,
+- normalized operation and HTTP metadata,
+- reason or error codes,
+- permitted state transitions and event-specific attributes.
 
-Actor information is derived exclusively from the authenticated server-side session. Audit context is constructed explicitly and does not contain raw request bodies, complete order records, passwords, tokens, cookies, session identifiers, addresses, or telephone numbers.
+Actor information is derived from trusted server-side state. Audit persistence does not copy raw request bodies, complete order records, passwords, tokens, cookies, session identifiers, customer addresses, telephone numbers, raw SQL, or stack traces.
 
-The business mutation and its audit insert use the same PostgreSQL transaction and database client. If the audit insert fails, the business mutation is rolled back. Validation failures, forbidden operations, rejected state transitions, idempotent repeats, and concurrency conflicts do not produce misleading success events.
+Successful product mutations and their audit writes share the same PostgreSQL transaction. If the audit insert fails, the business mutation is rolled back.
 
-At API startup, the application idempotently creates one `AUDIT_LOGGING_STARTED` system event before accepting requests. This event uses `SYSTEM` actor semantics without inventing a user identity. Existing orders are not backfilled with synthetic historical events.
+At API startup, the application idempotently ensures one `AUDIT_LOGGING_STARTED` system event exists. Existing orders are not backfilled with synthetic historical events.
 
-This foundation does not yet provide an audit read API, user interface, security or error event persistence, SIEM integration, retention automation, or protection against a PostgreSQL database owner.
+## Admin Audit Log
+
+The dedicated `/audit` page is available only to `ADMIN` users and opens within the existing application tab.
+
+It provides:
+
+- newest-first deterministic ordering,
+- cursor-based pagination,
+- category, outcome, and date-range filters,
+- username, order ID, and request ID searches,
+- readable actor, action, outcome, severity, timestamp, and target summaries,
+- sanitized detail inspection,
+- loading, empty, error, and forbidden states.
+
+There is no audit update or delete API, UI action, export feature, or Order Detail Activity section.
+
+## Audit Append-Only Boundary
+
+The running API uses the `boutique_app_runtime` database permission role.
+
+For `audit_events`, this role has:
+
+```text
+SELECT
+INSERT
+```
+
+It does not have:
+
+```text
+UPDATE
+DELETE
+```
+
+The dedicated `boutique_audit_retention` permission role can delete expired audit records and insert the corresponding system event, but it cannot update audit records or access unrelated application tables.
+
+This boundary protects audit records from normal application credentials. It does not claim immutability against the PostgreSQL database owner, a superuser, a system administrator, compromised infrastructure, or direct storage access. WORM storage, cryptographic signing, and hash chaining are outside the current scope.
+
+## Audit Retention
+
+Audit events remain online in PostgreSQL for 12 months.
+
+Run the dedicated retention operation with:
+
+```bash
+npm run audit:retention
+```
+
+The operation:
+
+- calculates the cutoff as the purge timestamp minus 12 calendar months,
+- deletes only records where `occurred_at < cutoff`,
+- preserves records exactly at the cutoff,
+- records an `AUDIT_RETENTION_PURGED` system event,
+- includes the cutoff, deleted count, and purge timestamp in the event context,
+- rolls back the deletion if the system event cannot be recorded.
+
+The application does not contain a recurring scheduler. Production scheduling must be configured by the deployment environment with `AUDIT_RETENTION_DATABASE_URL`.
+
+There is no manual audit delete endpoint or browser UI.
 
 ## Testing
 
@@ -579,6 +748,7 @@ Provision the required development users:
 ```bash
 npm run user:provision -- --username e2e.order.operator --role ORDER_OPERATOR
 npm run user:provision -- --username e2e.payment.operator --role PAYMENT_OPERATOR
+npm run user:provision -- --username e2e.admin --role ADMIN
 ```
 
 Create a local credential file by copying:
