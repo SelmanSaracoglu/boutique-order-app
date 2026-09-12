@@ -10,12 +10,14 @@ import {
 type RequirePermissionProps = {
   permission: Permission;
   children: ReactNode;
+  fallback?: ReactNode;
   redirectTo?: string;
 };
 
 export function RequirePermission({
   permission,
   children,
+  fallback,
   redirectTo = '/',
 }: RequirePermissionProps) {
   const session = useAuthenticatedSession();
@@ -23,6 +25,10 @@ export function RequirePermission({
   if (
     !hasPermission(session.user.role, permission)
   ) {
+    if (fallback !== undefined) {
+      return fallback;
+    }
+
     return (
       <Navigate
         to={redirectTo}

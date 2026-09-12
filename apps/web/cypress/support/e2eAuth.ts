@@ -3,6 +3,7 @@ import type {
 } from '../../src/features/auth/auth.types';
 
 export type E2ERole =
+  | 'ADMIN'
   | 'ORDER_OPERATOR'
   | 'PAYMENT_OPERATOR';
 
@@ -15,6 +16,10 @@ const credentialEnvironmentKeys: Record<
   E2ERole,
   CredentialEnvironmentKeys
 > = {
+  ADMIN: {
+    username: 'ADMIN_USERNAME',
+    password: 'ADMIN_PASSWORD',
+  },
   ORDER_OPERATOR: {
     username: 'ORDER_OPERATOR_USERNAME',
     password: 'ORDER_OPERATOR_PASSWORD',

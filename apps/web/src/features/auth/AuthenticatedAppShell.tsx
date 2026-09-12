@@ -9,6 +9,9 @@ import {
   useAuth,
   useAuthenticatedSession,
 } from './AuthContext';
+import {
+  hasPermission,
+} from './permissions';
 import './authenticated-app-shell.css';
 
 type SignOutState =
@@ -32,6 +35,11 @@ export function AuthenticatedAppShell({
   const [signOutState, setSignOutState] =
     useState<SignOutState>('idle');
 
+  const canViewAuditLog = hasPermission(
+    session.user.role,
+    'AUDIT_READ',
+  );
+
   async function handleSignOut() {
     if (signOutState === 'pending') {
       return;
@@ -50,12 +58,28 @@ export function AuthenticatedAppShell({
     <div className="app-shell">
       <header className="app-shell__header">
         <div className="app-shell__inner">
-          <Link
-            className="app-shell__brand"
-            to="/"
-          >
-            Boutique Orders
-          </Link>
+          <div className="app-shell__navigation">
+            <Link
+              className="app-shell__brand"
+              to="/"
+            >
+              Boutique Orders
+            </Link>
+
+            {canViewAuditLog && (
+              <nav
+                className="app-shell__primary-navigation"
+                aria-label="Primary navigation"
+              >
+                <Link
+                  className="app-shell__nav-link"
+                  to="/audit"
+                >
+                  Audit Log
+                </Link>
+              </nav>
+            )}
+          </div>
 
           <div className="app-shell__account">
             <div className="app-shell__identity">

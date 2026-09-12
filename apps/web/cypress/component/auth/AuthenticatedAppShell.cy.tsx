@@ -59,6 +59,17 @@ describe('AuthenticatedAppShell', () => {
     );
   });
 
+  it('shows an in-tab Audit Log navigation link for ADMIN', () => {
+    mountAuthenticatedShell();
+
+    cy.wait('@getSession');
+
+    cy.contains('a', 'Audit Log')
+      .should('be.visible')
+      .and('have.attr', 'href', '/audit')
+      .and('not.have.attr', 'target');
+  });
+
   it('signs out once and returns to the login screen', () => {
     cy.intercept(
       'POST',
@@ -137,4 +148,42 @@ describe('AuthenticatedAppShell', () => {
       'be.visible',
     );
   });
+
+  const nonAdminRoles = [
+    'ORDER_OPERATOR',
+    'PAYMENT_OPERATOR',
+    'FULFILLMENT_OPERATOR',
+  ] as const;
+
+  for (const role of nonAdminRoles) {
+    it(`hides Audit Log navigation from ${role}`, () => {
+      cy.intercept(
+        'GET',
+        '**/api/auth/session',
+        {
+          statusCode: 200,
+          body: {
+            ...authenticatedSession,
+            user: {
+              ...authenticatedSession.user,
+              role,
+            },
+          },
+        },
+      ).as('getNonAdminSession');
+
+      mountAuthenticatedShell();
+
+      cy.wait('@getNonAdminSession');
+
+      cy.contains(
+        'a',
+        'Audit Log',
+      ).should('not.exist');
+
+      cy.contains(
+        'Orders content',
+      ).should('be.visible');
+    });
+  }
 });

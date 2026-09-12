@@ -49,6 +49,39 @@ function mountProtectedOrderEntry(
   );
 }
 
+function mountProtectedAudit(
+  role: UserRole,
+) {
+  cy.mount(
+    <AuthenticatedTestProvider role={role}>
+      <MemoryRouter
+        initialEntries={['/audit']}
+      >
+        <Routes>
+          <Route
+            path="/audit"
+            element={
+              <RequirePermission
+                permission="AUDIT_READ"
+                fallback={
+                  <main>
+                    <p>403</p>
+                    <h1>Forbidden</h1>
+                  </main>
+                }
+              >
+                <h1>Audit Log</h1>
+              </RequirePermission>
+            }
+          />
+        </Routes>
+
+        <LocationProbe />
+      </MemoryRouter>
+    </AuthenticatedTestProvider>,
+  );
+}
+
 describe('RequirePermission', () => {
   const allowedRoles: readonly UserRole[] = [
     'ADMIN',
@@ -90,6 +123,46 @@ describe('RequirePermission', () => {
       cy.get('[data-testid="location"]').should(
         'have.text',
         '/',
+      );
+    });
+  }
+
+  it('allows ADMIN to open the direct audit route', () => {
+    mountProtectedAudit('ADMIN');
+
+    cy.contains('Audit Log').should(
+      'be.visible',
+    );
+
+    cy.contains('Forbidden').should(
+      'not.exist',
+    );
+
+    cy.get('[data-testid="location"]').should(
+      'have.text',
+      '/audit',
+    );
+  });
+
+  for (const role of deniedRoles) {
+    it(`shows a forbidden state for ${role} on the direct audit route`, () => {
+      mountProtectedAudit(role);
+
+      cy.contains('403').should(
+        'be.visible',
+      );
+
+      cy.contains('Forbidden').should(
+        'be.visible',
+      );
+
+      cy.contains('Audit Log').should(
+        'not.exist',
+      );
+
+      cy.get('[data-testid="location"]').should(
+        'have.text',
+        '/audit',
       );
     });
   }

@@ -26,6 +26,34 @@
   margin: 0 auto;
 }
 
+.app-shell__navigation {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.app-shell__primary-navigation {
+  display: flex;
+  align-items: center;
+}
+
+.app-shell__nav-link {
+  padding: 8px 10px;
+
+  color: var(--color-muted);
+
+  border-radius: 8px;
+
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-shell__nav-link:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
 .app-shell__brand {
   color: var(--color-text);
 
@@ -123,5 +151,13 @@
   .app-shell__feedback {
     margin-top: 8px;
     text-align: right;
+  }
+
+  .app-shell__navigation {
+    gap: 10px;
+  }
+
+  .app-shell__nav-link {
+    padding: 7px 8px;
   }
 }

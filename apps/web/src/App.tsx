@@ -1,8 +1,12 @@
 import { Route, Routes } from 'react-router-dom';
-import { OrderEntryForm } from './features/order-entry/OrderEntryForm';
-import { OrdersRouteLayout } from './features/orders/OrdersRouteLayout';
-import { OrderDetailDialog } from './features/orders/OrderDetailDialog';
+import {
+  AuditLogForbiddenPage,
+  AuditLogPage,
+} from './features/audit/AuditLogPage';
 import { RequirePermission } from './features/auth/RequirePermission';
+import { OrderEntryForm } from './features/order-entry/OrderEntryForm';
+import { OrderDetailDialog } from './features/orders/OrderDetailDialog';
+import { OrdersRouteLayout } from './features/orders/OrdersRouteLayout';
 
 function App() {
   return (
@@ -24,6 +28,20 @@ function App() {
             <main className="page">
               <OrderEntryForm />
             </main>
+          </RequirePermission>
+        }
+      />
+
+      <Route
+        path="/audit"
+        element={
+          <RequirePermission
+            permission="AUDIT_READ"
+            fallback={
+              <AuditLogForbiddenPage />
+            }
+          >
+            <AuditLogPage />
           </RequirePermission>
         }
       />
