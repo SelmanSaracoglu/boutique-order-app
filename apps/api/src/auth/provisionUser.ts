@@ -8,6 +8,8 @@ import {
   type UserStatus,
 } from './user.js'
 
+import type { Pool } from 'pg'
+
 export const provisionUserInputSchema = z
   .object({
     username: usernameSchema,
@@ -44,6 +46,8 @@ export class UserProvisioningError extends Error {
   }
 }
 
+type UserProvisioningDatabase = Pick<Pool, 'query'>
+
 interface UserRow {
   id: number
   username: string
@@ -66,6 +70,7 @@ function isUniqueUsernameViolation(error: unknown): boolean {
 
 export async function provisionUser(
   input: ProvisionUserInput,
+  database: UserProvisioningDatabase = pool,
 ): Promise<ProvisionedUser> {
   const validationResult = provisionUserInputSchema.safeParse(input)
 
@@ -83,7 +88,7 @@ export async function provisionUser(
   const passwordHash = await hashPassword(password)
 
   try {
-    const result = await pool.query<UserRow>(
+    const result = await database.query<UserRow>(
       `
         INSERT INTO users (
           username,

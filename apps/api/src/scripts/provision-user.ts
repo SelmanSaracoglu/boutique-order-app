@@ -10,7 +10,18 @@ import {
   userRoleSchema,
   usernameSchema,
 } from '../auth/user.js'
-import { pool } from '../db.js'
+import { Pool } from 'pg'
+
+const migrationConnectionString =
+  process.env.MIGRATION_DATABASE_URL
+
+if (!migrationConnectionString) {
+  throw new Error('MIGRATION_DATABASE_URL is required')
+}
+
+const provisioningPool = new Pool({
+  connectionString: migrationConnectionString,
+})
 
 const identityArgumentsSchema = z
   .object({
@@ -84,7 +95,9 @@ async function main(): Promise<void> {
   const user = await provisionUser({
     ...identityValidationResult.data,
     password,
-  })
+  },
+  provisioningPool,
+)
 
   console.log(
     `Provisioned user ${user.username} with role ${user.role}.`,
@@ -102,5 +115,5 @@ try {
 
   process.exitCode = 1
 } finally {
-  await pool.end()
+  await provisioningPool.end()
 }

@@ -7,13 +7,13 @@ const useTestDatabase = process.argv.includes('--test')
 
 const connectionString = useTestDatabase
   ? process.env.TEST_DATABASE_URL
-  : process.env.DATABASE_URL
+  : process.env.MIGRATION_DATABASE_URL
 
 if (!connectionString) {
   throw new Error(
     useTestDatabase
       ? 'TEST_DATABASE_URL is required'
-      : 'DATABASE_URL is required',
+      : 'MIGRATION_DATABASE_URL is required',
   )
 }
 

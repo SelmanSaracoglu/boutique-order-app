@@ -11,7 +11,8 @@
     "build": "tsc",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:migrate:test": "tsx src/scripts/migrate.ts --test",
-    "user:provision": "tsx src/scripts/provision-user.ts"
+    "user:provision": "tsx src/scripts/provision-user.ts",
+    "audit:retention": "tsx src/scripts/purge-audit-events.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
