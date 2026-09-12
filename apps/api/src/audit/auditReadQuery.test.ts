@@ -14,6 +14,16 @@ const VALID_CURSOR = {
   id: '42',
 }
 
+const EMPTY_FILTERS = {
+  category: null,
+  outcome: null,
+  from: null,
+  to: null,
+  username: null,
+  orderId: null,
+  requestId: null,
+}
+
 function encodeRawCursor(
   value: unknown,
 ): string {
@@ -24,10 +34,11 @@ function encodeRawCursor(
 }
 
 describe('Audit read query', () => {
-  it('uses the default page size without a cursor', () => {
+  it('uses defaults without filters or a cursor', () => {
     expect(parseAuditReadQuery({})).toEqual({
       limit: 25,
       cursor: null,
+      filters: EMPTY_FILTERS,
     })
   })
 
@@ -39,6 +50,59 @@ describe('Audit read query', () => {
     ).toEqual({
       limit: 100,
       cursor: null,
+      filters: EMPTY_FILTERS,
+    })
+  })
+
+  it('accepts and normalizes supported filters', () => {
+    expect(
+      parseAuditReadQuery({
+        category: 'ERROR',
+        outcome: 'FAILURE',
+        from:
+          '2026-01-01T00:00:00.000Z',
+        to:
+          '2026-01-31T23:59:59.999Z',
+        username: '  Admin.User  ',
+        orderId: '42',
+        requestId:
+          '00000000-0000-4000-8000-000000000042',
+      }),
+    ).toEqual({
+      limit: 25,
+      cursor: null,
+      filters: {
+        category: 'ERROR',
+        outcome: 'FAILURE',
+        from:
+          '2026-01-01T00:00:00.000Z',
+        to:
+          '2026-01-31T23:59:59.999Z',
+        username: 'admin.user',
+        orderId: '42',
+        requestId:
+          '00000000-0000-4000-8000-000000000042',
+      },
+    })
+  })
+
+  it('allows equal date range boundaries', () => {
+    const timestamp =
+      '2026-09-12T10:30:00.000Z'
+
+    expect(
+      parseAuditReadQuery({
+        from: timestamp,
+        to: timestamp,
+      }),
+    ).toEqual({
+      limit: 25,
+      cursor: null,
+      filters: {
+        ...EMPTY_FILTERS,
+        from: timestamp,
+        to: timestamp,
+      },
     })
   })
 
@@ -50,10 +114,15 @@ describe('Audit read query', () => {
       parseAuditReadQuery({
         limit: '10',
         cursor: encodedCursor,
+        category: 'SECURITY',
       }),
     ).toEqual({
       limit: 10,
       cursor: VALID_CURSOR,
+      filters: {
+        ...EMPTY_FILTERS,
+        category: 'SECURITY',
+      },
     })
   })
 
@@ -66,7 +135,51 @@ describe('Audit read query', () => {
     { limit: ['25'] },
     { unsupported: 'value' },
   ])(
-    'rejects an invalid query: $limit',
+    'rejects an invalid pagination query',
+    (query) => {
+      expect(
+        parseAuditReadQuery(query),
+      ).toBeNull()
+    },
+  )
+
+  it.each([
+    { category: 'ALL' },
+    { category: 'SYSTEM' },
+    { category: 'product' },
+    { category: ['PRODUCT'] },
+    { outcome: 'INFO' },
+    { outcome: 'success' },
+    { outcome: ['SUCCESS'] },
+    { from: '2026-01-01' },
+    {
+      to:
+        '2026-01-31T23:59:59+00:00',
+    },
+    {
+      from:
+        '2026-02-01T00:00:00.000Z',
+      to:
+        '2026-01-01T00:00:00.000Z',
+    },
+    { username: 'a' },
+    { username: ['admin'] },
+    { orderId: '0' },
+    { orderId: '01' },
+    { orderId: '2147483648' },
+    { orderId: ['42'] },
+    { requestId: 'not-a-uuid' },
+    {
+      requestId:
+        '00000000-0000-0000-0000-000000000000',
+    },
+    {
+      requestId: [
+        '00000000-0000-4000-8000-000000000042',
+      ],
+    },
+  ])(
+    'rejects invalid filter input',
     (query) => {
       expect(
         parseAuditReadQuery(query),

@@ -1,80 +1,80 @@
 import request from 'supertest'
 import {
-  afterAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
+    afterAll,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    vi,
 } from 'vitest'
 import type {
-  AuditEventPage,
+    AuditEventPage,
 } from '../src/audit/auditReadRepository.js'
 import type {
-  UserRole,
+    UserRole,
 } from '../src/auth/user.js'
 import { app } from '../src/app.js'
 import { pool } from '../src/db.js'
 import {
-  createAuthenticatedTestClient,
+    createAuthenticatedTestClient,
 } from './authenticatedTestClient.js'
 
 const AUDIT_FAILURE_CONSTRAINT =
-  'audit_log_viewed_integration_failure'
+    'audit_log_viewed_integration_failure'
 
 const OCCURRED_AT =
-  '2026-01-01T10:30:00.000Z'
+    '2026-01-01T10:30:00.000Z'
 
 const SENSITIVE_CONTEXT = {
-  token: 'super-secret-token',
-  cookie: 'super-secret-cookie',
-  sessionId: 'super-secret-session',
-  requestBody: {
-    customerName: 'Sensitive Customer',
-  },
-  sql: 'SELECT sensitive_data',
-  stack: 'Sensitive stack trace',
+    token: 'super-secret-token',
+    cookie: 'super-secret-cookie',
+    sessionId: 'super-secret-session',
+    requestBody: {
+        customerName: 'Sensitive Customer',
+    },
+    sql: 'SELECT sensitive_data',
+    stack: 'Sensitive stack trace',
 }
 
 const NON_ADMIN_ROLES = [
-  'ORDER_OPERATOR',
-  'PAYMENT_OPERATOR',
-  'FULFILLMENT_OPERATOR',
+    'ORDER_OPERATOR',
+    'PAYMENT_OPERATOR',
+    'FULFILLMENT_OPERATOR',
 ] as const satisfies readonly UserRole[]
 
 const authenticationRequiredResponse = {
-  error: {
-    code: 'AUTHENTICATION_REQUIRED',
-    message: 'Authentication required.',
-  },
+    error: {
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Authentication required.',
+    },
 }
 
 const forbiddenResponse = {
-  error: {
-    code: 'FORBIDDEN',
-    message:
-      'You do not have permission to perform this action.',
-  },
+    error: {
+        code: 'FORBIDDEN',
+        message:
+            'You do not have permission to perform this action.',
+    },
 }
 
 function readRequestId(response: {
-  headers: Record<string, unknown>
+    headers: Record<string, unknown>
 }): string {
-  const requestId =
-    response.headers['x-request-id']
+    const requestId =
+        response.headers['x-request-id']
 
-  if (typeof requestId !== 'string') {
-    throw new Error(
-      'Expected a response request ID',
-    )
-  }
+    if (typeof requestId !== 'string') {
+        throw new Error(
+            'Expected a response request ID',
+        )
+    }
 
-  return requestId
+    return requestId
 }
 
 async function seedAuditEvents(): Promise<void> {
-  await pool.query(
-    `
+    await pool.query(
+        `
       INSERT INTO audit_events (
         schema_version,
         occurred_at,
@@ -134,77 +134,77 @@ async function seedAuditEvents(): Promise<void> {
         3
       ) AS sequence_number
     `,
-    [
-      OCCURRED_AT,
-      JSON.stringify(SENSITIVE_CONTEXT),
-    ],
-  )
+        [
+            OCCURRED_AT,
+            JSON.stringify(SENSITIVE_CONTEXT),
+        ],
+    )
 }
 
 describe('Admin audit read API', () => {
-  beforeEach(async () => {
-    await pool.query(`
+    beforeEach(async () => {
+        await pool.query(`
       ALTER TABLE audit_events
       DROP CONSTRAINT IF EXISTS
         ${AUDIT_FAILURE_CONSTRAINT}
     `)
 
-    await pool.query(
-      'TRUNCATE audit_events RESTART IDENTITY',
-    )
+        await pool.query(
+            'TRUNCATE audit_events RESTART IDENTITY',
+        )
 
-    await pool.query(`
+        await pool.query(`
       TRUNCATE user_sessions, users
       RESTART IDENTITY CASCADE
     `)
-  })
+    })
 
-  afterAll(async () => {
-    await pool.query(`
+    afterAll(async () => {
+        await pool.query(`
       ALTER TABLE audit_events
       DROP CONSTRAINT IF EXISTS
         ${AUDIT_FAILURE_CONSTRAINT}
     `)
 
-    await pool.end()
-  })
+        await pool.end()
+    })
 
-  it('returns 401 without authentication', async () => {
-    const response = await request(app)
-      .get('/api/audit-events')
-      .expect(401)
+    it('returns 401 without authentication', async () => {
+        const response = await request(app)
+            .get('/api/audit-events')
+            .expect(401)
 
-    expect(response.body).toEqual(
-      authenticationRequiredResponse,
-    )
-  })
-
-  it.each(NON_ADMIN_ROLES)( 'returns 403 for %s and records the denied audit target',
-    async (role) => {
-      const authenticatedClient =
-        await createAuthenticatedTestClient(
-          role,
+        expect(response.body).toEqual(
+            authenticationRequiredResponse,
         )
+    })
 
-      await pool.query(
-        'TRUNCATE audit_events RESTART IDENTITY',
-      )
+    it.each(NON_ADMIN_ROLES)('returns 403 for %s and records the denied audit target',
+        async (role) => {
+            const authenticatedClient =
+                await createAuthenticatedTestClient(
+                    role,
+                )
 
-      const response =
-        await authenticatedClient
-          .get('/api/audit-events')
-          .expect(403)
+            await pool.query(
+                'TRUNCATE audit_events RESTART IDENTITY',
+            )
 
-      expect(response.body).toEqual(
-        forbiddenResponse,
-      )
+            const response =
+                await authenticatedClient
+                    .get('/api/audit-events')
+                    .expect(403)
 
-      const requestId =
-        readRequestId(response)
+            expect(response.body).toEqual(
+                forbiddenResponse,
+            )
 
-      const auditResult =
-        await pool.query(
-          `
+            const requestId =
+                readRequestId(response)
+
+            const auditResult =
+                await pool.query(
+                    `
             SELECT
               action,
               actor_user_id,
@@ -222,171 +222,183 @@ describe('Admin audit read API', () => {
             FROM audit_events
             WHERE request_id = $1
           `,
-          [requestId],
-        )
+                    [requestId],
+                )
 
-      expect(auditResult.rows).toEqual([
-        {
-          action:
-            'AUTHORIZATION_DENIED',
-          actor_user_id:
-            authenticatedClient.user.id,
-          actor_username:
-            authenticatedClient.user.username,
-          actor_role: role,
-          target_resource_type:
-            'AUDIT_LOG',
-          target_resource_id:
-            'audit-events',
-          request_id: requestId,
-          operation:
-            'AUTHORIZE_REQUEST',
-          http_method: 'GET',
-          http_route:
-            '/api/audit-events/',
-          http_status: 403,
-          reason_code: 'FORBIDDEN',
-          context: {
-            permission: 'AUDIT_READ',
-          },
+            expect(auditResult.rows).toEqual([
+                {
+                    action:
+                        'AUTHORIZATION_DENIED',
+                    actor_user_id:
+                        authenticatedClient.user.id,
+                    actor_username:
+                        authenticatedClient.user.username,
+                    actor_role: role,
+                    target_resource_type:
+                        'AUDIT_LOG',
+                    target_resource_id:
+                        'audit-events',
+                    request_id: requestId,
+                    operation:
+                        'AUTHORIZE_REQUEST',
+                    http_method: 'GET',
+                    http_route:
+                        '/api/audit-events/',
+                    http_status: 403,
+                    reason_code: 'FORBIDDEN',
+                    context: {
+                        permission: 'AUDIT_READ',
+                    },
+                },
+            ])
         },
-      ])
-    },
-  )
-
-  it('returns deterministic pages and records one view event per page', async () => {
-    const adminClient =
-      await createAuthenticatedTestClient(
-        'ADMIN',
-      )
-
-    await pool.query(
-      'TRUNCATE audit_events RESTART IDENTITY',
     )
 
-    await seedAuditEvents()
+    it('returns deterministic pages and records one view event per page', async () => {
+        const adminClient =
+            await createAuthenticatedTestClient(
+                'ADMIN',
+            )
 
-    const firstResponse =
-      await adminClient
-        .get('/api/audit-events')
-        .query({
-          limit: '2',
+        await pool.query(
+            'TRUNCATE audit_events RESTART IDENTITY',
+        )
+
+        await seedAuditEvents()
+
+        const firstResponse =
+            await adminClient
+                .get('/api/audit-events')
+                .query({
+                    limit: '2',
+                })
+                .expect(200)
+
+        const firstRequestId =
+            readRequestId(firstResponse)
+
+        const firstPage =
+            firstResponse.body as
+            AuditEventPage
+
+        expect(
+            firstPage.items.map(
+                (event) => event.id,
+            ),
+        ).toEqual(['3', '2'])
+
+        expect(firstPage.nextCursor).not.toBeNull()
+
+        expect(firstPage.items[0]).toEqual({
+            id: '3',
+            occurredAt: OCCURRED_AT,
+            category: 'SECURITY',
+            action:
+                'AUTH_LOGIN_SUCCEEDED',
+            outcome: 'SUCCESS',
+            severity: 'INFO',
+            actor: {
+                type: 'USER',
+                username: 'admin spoofed',
+                role: 'ADMIN',
+            },
+            target: {
+                resourceType:
+                    'AUTHENTICATION',
+                resourceId:
+                    'login-3 spoofed',
+            },
+            requestId:
+                '00000000-0000-4000-8000-000000000003',
+            detail: {
+                operation: 'AUTH_LOGIN',
+                http: {
+                    method: 'POST',
+                    route: '/api/auth/login',
+                    status: 200,
+                },
+                reasonCode: null,
+                errorCode: null,
+                stateTransition: null,
+                attributes: null,
+            },
         })
-        .expect(200)
 
-    const firstRequestId =
-      readRequestId(firstResponse)
+        expect(
+            firstPage.items[0],
+        ).not.toHaveProperty('context')
 
-    const firstPage =
-      firstResponse.body as
-        AuditEventPage
+        expect(
+            firstPage.items[0],
+        ).not.toHaveProperty('sourceIp')
 
-    expect(
-      firstPage.items.map(
-        (event) => event.id,
-      ),
-    ).toEqual(['3', '2'])
+        expect(
+            firstPage.items[0],
+        ).not.toHaveProperty('userAgent')
 
-    expect(firstPage.nextCursor).not.toBeNull()
+        expect(
+            firstPage.items[0]?.actor,
+        ).not.toHaveProperty('userId')
 
-    expect(firstPage.items[0]).toEqual({
-      id: '3',
-      occurredAt: OCCURRED_AT,
-      category: 'SECURITY',
-      action:
-        'AUTH_LOGIN_SUCCEEDED',
-      outcome: 'SUCCESS',
-      severity: 'INFO',
-      actor: {
-        type: 'USER',
-        username: 'admin spoofed',
-        role: 'ADMIN',
-      },
-      target: {
-        resourceType:
-          'AUTHENTICATION',
-        resourceId:
-          'login-3 spoofed',
-      },
-      requestId:
-        '00000000-0000-4000-8000-000000000003',
-    })
+        if (firstPage.nextCursor === null) {
+            throw new Error(
+                'Expected a next-page cursor',
+            )
+        }
 
-    expect(
-      firstPage.items[0],
-    ).not.toHaveProperty('context')
+        const secondResponse =
+            await adminClient
+                .get('/api/audit-events')
+                .query({
+                    limit: '2',
+                    cursor:
+                        firstPage.nextCursor,
+                })
+                .expect(200)
 
-    expect(
-      firstPage.items[0],
-    ).not.toHaveProperty('sourceIp')
+        const secondRequestId =
+            readRequestId(secondResponse)
 
-    expect(
-      firstPage.items[0],
-    ).not.toHaveProperty('userAgent')
+        const secondPage =
+            secondResponse.body as
+            AuditEventPage
 
-    expect(
-      firstPage.items[0]?.actor,
-    ).not.toHaveProperty('userId')
+        expect(
+            secondPage.items.map(
+                (event) => event.id,
+            ),
+        ).toEqual(['1'])
 
-    if (firstPage.nextCursor === null) {
-      throw new Error(
-        'Expected a next-page cursor',
-      )
-    }
+        expect(
+            secondPage.nextCursor,
+        ).toBeNull()
 
-    const secondResponse =
-      await adminClient
-        .get('/api/audit-events')
-        .query({
-          limit: '2',
-          cursor:
-            firstPage.nextCursor,
-        })
-        .expect(200)
+        const serializedPages =
+            JSON.stringify({
+                firstPage,
+                secondPage,
+            })
 
-    const secondRequestId =
-      readRequestId(secondResponse)
+        const sensitiveValues = [
+            'super-secret-token',
+            'super-secret-cookie',
+            'super-secret-session',
+            'Sensitive Customer',
+            'SELECT sensitive_data',
+            'Sensitive stack trace',
+        ]
 
-    const secondPage =
-      secondResponse.body as
-        AuditEventPage
+        for (
+            const sensitiveValue of
+            sensitiveValues
+        ) {
+            expect(
+                serializedPages,
+            ).not.toContain(sensitiveValue)
+        }
 
-    expect(
-      secondPage.items.map(
-        (event) => event.id,
-      ),
-    ).toEqual(['1'])
-
-    expect(
-      secondPage.nextCursor,
-    ).toBeNull()
-
-    const serializedPages =
-      JSON.stringify({
-        firstPage,
-        secondPage,
-      })
-
-    const sensitiveValues = [
-      'super-secret-token',
-      'super-secret-cookie',
-      'super-secret-session',
-      'Sensitive Customer',
-      'SELECT sensitive_data',
-      'Sensitive stack trace',
-    ]
-
-    for (
-      const sensitiveValue of
-      sensitiveValues
-    ) {
-      expect(
-        serializedPages,
-      ).not.toContain(sensitiveValue)
-    }
-
-    const viewedAuditResult =
-      await pool.query(`
+        const viewedAuditResult =
+            await pool.query(`
         SELECT
           category,
           action,
@@ -409,90 +421,90 @@ describe('Admin audit read API', () => {
         ORDER BY id
       `)
 
-    expect(
-      viewedAuditResult.rows,
-    ).toEqual([
-      {
-        category: 'SECURITY',
-        action: 'AUDIT_LOG_VIEWED',
-        outcome: 'SUCCESS',
-        severity: 'INFO',
-        actor_user_id:
-          adminClient.user.id,
-        actor_username:
-          adminClient.user.username,
-        actor_role: 'ADMIN',
-        target_resource_type:
-          'AUDIT_LOG',
-        target_resource_id:
-          'audit-events',
-        request_id: firstRequestId,
-        operation:
-          'VIEW_AUDIT_LOG',
-        http_method: 'GET',
-        http_route:
-          '/api/audit-events/',
-        http_status: 200,
-        context: {},
-      },
-      {
-        category: 'SECURITY',
-        action: 'AUDIT_LOG_VIEWED',
-        outcome: 'SUCCESS',
-        severity: 'INFO',
-        actor_user_id:
-          adminClient.user.id,
-        actor_username:
-          adminClient.user.username,
-        actor_role: 'ADMIN',
-        target_resource_type:
-          'AUDIT_LOG',
-        target_resource_id:
-          'audit-events',
-        request_id: secondRequestId,
-        operation:
-          'VIEW_AUDIT_LOG',
-        http_method: 'GET',
-        http_route:
-          '/api/audit-events/',
-        http_status: 200,
-        context: {},
-      },
-    ])
-  })
-
-  it('returns 400 and audits an invalid query', async () => {
-    const adminClient =
-      await createAuthenticatedTestClient(
-        'ADMIN',
-      )
-
-    await pool.query(
-      'TRUNCATE audit_events RESTART IDENTITY',
-    )
-
-    const response =
-      await adminClient
-        .get('/api/audit-events')
-        .query({
-          limit: '101',
-        })
-        .expect(400)
-
-    expect(response.body).toEqual({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message:
-          'Audit query is invalid.',
-      },
+        expect(
+            viewedAuditResult.rows,
+        ).toEqual([
+            {
+                category: 'SECURITY',
+                action: 'AUDIT_LOG_VIEWED',
+                outcome: 'SUCCESS',
+                severity: 'INFO',
+                actor_user_id:
+                    adminClient.user.id,
+                actor_username:
+                    adminClient.user.username,
+                actor_role: 'ADMIN',
+                target_resource_type:
+                    'AUDIT_LOG',
+                target_resource_id:
+                    'audit-events',
+                request_id: firstRequestId,
+                operation:
+                    'VIEW_AUDIT_LOG',
+                http_method: 'GET',
+                http_route:
+                    '/api/audit-events/',
+                http_status: 200,
+                context: {},
+            },
+            {
+                category: 'SECURITY',
+                action: 'AUDIT_LOG_VIEWED',
+                outcome: 'SUCCESS',
+                severity: 'INFO',
+                actor_user_id:
+                    adminClient.user.id,
+                actor_username:
+                    adminClient.user.username,
+                actor_role: 'ADMIN',
+                target_resource_type:
+                    'AUDIT_LOG',
+                target_resource_id:
+                    'audit-events',
+                request_id: secondRequestId,
+                operation:
+                    'VIEW_AUDIT_LOG',
+                http_method: 'GET',
+                http_route:
+                    '/api/audit-events/',
+                http_status: 200,
+                context: {},
+            },
+        ])
     })
 
-    const requestId =
-      readRequestId(response)
+    it('returns 400 and audits an invalid query', async () => {
+        const adminClient =
+            await createAuthenticatedTestClient(
+                'ADMIN',
+            )
 
-    const auditResult =
-      await pool.query(
-        `
+        await pool.query(
+            'TRUNCATE audit_events RESTART IDENTITY',
+        )
+
+        const response =
+            await adminClient
+                .get('/api/audit-events')
+                .query({
+                    limit: '101',
+                })
+                .expect(400)
+
+        expect(response.body).toEqual({
+            error: {
+                code: 'VALIDATION_ERROR',
+                message:
+                    'Audit query is invalid.',
+            },
+        })
+
+        const requestId =
+            readRequestId(response)
+
+        const auditResult =
+            await pool.query(
+                `
           SELECT
             action,
             target_resource_type,
@@ -505,41 +517,41 @@ describe('Admin audit read API', () => {
           FROM audit_events
           WHERE request_id = $1
         `,
-        [requestId],
-      )
+                [requestId],
+            )
 
-    expect(auditResult.rows).toEqual([
-      {
-        action:
-          'REQUEST_VALIDATION_FAILED',
-        target_resource_type:
-          'AUDIT_LOG',
-        target_resource_id:
-          'audit-events',
-        request_id: requestId,
-        operation:
-          'VIEW_AUDIT_LOG',
-        http_status: 400,
-        reason_code:
-          'VALIDATION_ERROR',
-        context: {},
-      },
-    ])
-  })
+        expect(auditResult.rows).toEqual([
+            {
+                action:
+                    'REQUEST_VALIDATION_FAILED',
+                target_resource_type:
+                    'AUDIT_LOG',
+                target_resource_id:
+                    'audit-events',
+                request_id: requestId,
+                operation:
+                    'VIEW_AUDIT_LOG',
+                http_status: 400,
+                reason_code:
+                    'VALIDATION_ERROR',
+                context: {},
+            },
+        ])
+    })
 
-  it('fails closed when the view event cannot be persisted', async () => {
-    const adminClient =
-      await createAuthenticatedTestClient(
-        'ADMIN',
-      )
+    it('fails closed when the view event cannot be persisted', async () => {
+        const adminClient =
+            await createAuthenticatedTestClient(
+                'ADMIN',
+            )
 
-    await pool.query(
-      'TRUNCATE audit_events RESTART IDENTITY',
-    )
+        await pool.query(
+            'TRUNCATE audit_events RESTART IDENTITY',
+        )
 
-    await seedAuditEvents()
+        await seedAuditEvents()
 
-    await pool.query(`
+        await pool.query(`
       ALTER TABLE audit_events
       ADD CONSTRAINT
         ${AUDIT_FAILURE_CONSTRAINT}
@@ -548,55 +560,55 @@ describe('Admin audit read API', () => {
       )
     `)
 
-    const stderrWriteSpy = vi
-      .spyOn(process.stderr, 'write')
-      .mockReturnValue(true)
+        const stderrWriteSpy = vi
+            .spyOn(process.stderr, 'write')
+            .mockReturnValue(true)
 
-    try {
-      const response =
-        await adminClient
-          .get('/api/audit-events')
-          .expect(500)
+        try {
+            const response =
+                await adminClient
+                    .get('/api/audit-events')
+                    .expect(500)
 
-      const requestId =
-        readRequestId(response)
+            const requestId =
+                readRequestId(response)
 
-      expect(response.body).toEqual({
-        error: {
-          code: 'INTERNAL_ERROR',
-          message:
-            'An unexpected error occurred.',
-          requestId,
-        },
-      })
+            expect(response.body).toEqual({
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message:
+                        'An unexpected error occurred.',
+                    requestId,
+                },
+            })
 
-      expect(
-        JSON.stringify(response.body),
-      ).not.toContain(
-        'super-secret',
-      )
+            expect(
+                JSON.stringify(response.body),
+            ).not.toContain(
+                'super-secret',
+            )
 
-      expect(
-        JSON.stringify(response.body),
-      ).not.toContain(
-        AUDIT_FAILURE_CONSTRAINT,
-      )
+            expect(
+                JSON.stringify(response.body),
+            ).not.toContain(
+                AUDIT_FAILURE_CONSTRAINT,
+            )
 
-      const viewedResult =
-        await pool.query(`
+            const viewedResult =
+                await pool.query(`
           SELECT COUNT(*)::int AS count
           FROM audit_events
           WHERE action =
             'AUDIT_LOG_VIEWED'
         `)
 
-      expect(
-        viewedResult.rows[0].count,
-      ).toBe(0)
+            expect(
+                viewedResult.rows[0].count,
+            ).toBe(0)
 
-      const applicationErrorResult =
-        await pool.query(
-          `
+            const applicationErrorResult =
+                await pool.query(
+                    `
             SELECT
               action,
               target_resource_type,
@@ -611,55 +623,246 @@ describe('Admin audit read API', () => {
             WHERE action =
               'APPLICATION_ERROR'
           `,
-        )
+                )
 
-      expect(
-        applicationErrorResult.rows,
-      ).toEqual([
-        {
-          action:
-            'APPLICATION_ERROR',
-          target_resource_type:
-            'AUDIT_LOG',
-          target_resource_id:
-            'audit-events',
-          request_id: requestId,
-          operation:
-            'VIEW_AUDIT_LOG',
-          http_method: 'GET',
-          http_route:
-            '/api/audit-events/',
-          http_status: 500,
-          context: {},
-        },
-      ])
+            expect(
+                applicationErrorResult.rows,
+            ).toEqual([
+                {
+                    action:
+                        'APPLICATION_ERROR',
+                    target_resource_type:
+                        'AUDIT_LOG',
+                    target_resource_id:
+                        'audit-events',
+                    request_id: requestId,
+                    operation:
+                        'VIEW_AUDIT_LOG',
+                    http_method: 'GET',
+                    http_route:
+                        '/api/audit-events/',
+                    http_status: 500,
+                    context: {},
+                },
+            ])
 
-      const stderrOutput =
-        stderrWriteSpy.mock.calls
-          .map((call) =>
-            String(call[0]),
-          )
-          .join('')
+            const stderrOutput =
+                stderrWriteSpy.mock.calls
+                    .map((call) =>
+                        String(call[0]),
+                    )
+                    .join('')
 
-      expect(
-        stderrOutput,
-      ).not.toContain(
-        AUDIT_FAILURE_CONSTRAINT,
-      )
+            expect(
+                stderrOutput,
+            ).not.toContain(
+                AUDIT_FAILURE_CONSTRAINT,
+            )
 
-      expect(
-        stderrOutput,
-      ).not.toContain(
-        'super-secret',
-      )
-    } finally {
-      stderrWriteSpy.mockRestore()
+            expect(
+                stderrOutput,
+            ).not.toContain(
+                'super-secret',
+            )
+        } finally {
+            stderrWriteSpy.mockRestore()
 
-      await pool.query(`
+            await pool.query(`
         ALTER TABLE audit_events
         DROP CONSTRAINT IF EXISTS
           ${AUDIT_FAILURE_CONSTRAINT}
       `)
-    }
+        }
+    })
+
+    it('applies combined filters and records one non-recursive view event', async () => {
+    const adminClient =
+      await createAuthenticatedTestClient(
+        'ADMIN',
+      )
+
+    await pool.query(
+      'TRUNCATE audit_events RESTART IDENTITY',
+    )
+
+    await pool.query(`
+      INSERT INTO audit_events (
+        schema_version,
+        occurred_at,
+        category,
+        action,
+        outcome,
+        severity,
+        actor_type,
+        actor_user_id,
+        actor_username,
+        actor_role,
+        target_resource_type,
+        target_resource_id,
+        request_id,
+        operation,
+        http_method,
+        http_route,
+        http_status,
+        reason_code,
+        previous_order_status,
+        new_order_status,
+        previous_payment_status,
+        new_payment_status,
+        context
+      )
+      VALUES
+        (
+          2,
+          '2026-03-10T10:00:00.000Z',
+          'PRODUCT',
+          'ORDER_CANCELLED',
+          'REJECTED',
+          'WARN',
+          'USER',
+          1,
+          'admin',
+          'ADMIN',
+          'ORDER',
+          '42',
+          '00000000-0000-4000-8000-000000000042',
+          'UPDATE_ORDER_STATUS',
+          'PATCH',
+          '/api/orders/:orderId/status',
+          409,
+          'INVALID_STATUS_TRANSITION',
+          'NEW',
+          'CANCELLED',
+          'AWAITING_PAYMENT',
+          'AWAITING_PAYMENT',
+          '{}'::jsonb
+        ),
+        (
+          2,
+          '2026-03-10T10:00:00.000Z',
+          'PRODUCT',
+          'ORDER_CANCELLED',
+          'REJECTED',
+          'WARN',
+          'USER',
+          1,
+          'admin',
+          'ADMIN',
+          'ORDER',
+          '43',
+          '00000000-0000-4000-8000-000000000043',
+          'UPDATE_ORDER_STATUS',
+          'PATCH',
+          '/api/orders/:orderId/status',
+          409,
+          'INVALID_STATUS_TRANSITION',
+          'NEW',
+          'CANCELLED',
+          'AWAITING_PAYMENT',
+          'AWAITING_PAYMENT',
+          '{}'::jsonb
+        )
+    `)
+
+    const response =
+      await adminClient
+        .get('/api/audit-events')
+        .query({
+          category: 'PRODUCT',
+          outcome: 'REJECTED',
+          from:
+            '2026-03-10T10:00:00.000Z',
+          to:
+            '2026-03-10T10:00:00.000Z',
+          username: 'ADMIN',
+          orderId: '42',
+          requestId:
+            '00000000-0000-4000-8000-000000000042',
+        })
+        .expect(200)
+
+    const requestId =
+      readRequestId(response)
+
+    const page =
+      response.body as AuditEventPage
+
+    expect(page.nextCursor).toBeNull()
+
+    expect(page.items).toEqual([
+      {
+        id: '1',
+        occurredAt:
+          '2026-03-10T10:00:00.000Z',
+        category: 'PRODUCT',
+        action: 'ORDER_CANCELLED',
+        outcome: 'REJECTED',
+        severity: 'WARN',
+        actor: {
+          type: 'USER',
+          username: 'admin',
+          role: 'ADMIN',
+        },
+        target: {
+          resourceType: 'ORDER',
+          resourceId: '42',
+        },
+        requestId:
+          '00000000-0000-4000-8000-000000000042',
+        detail: {
+          operation:
+            'UPDATE_ORDER_STATUS',
+          http: {
+            method: 'PATCH',
+            route:
+              '/api/orders/:orderId/status',
+            status: 409,
+          },
+          reasonCode:
+            'INVALID_STATUS_TRANSITION',
+          errorCode: null,
+          stateTransition: {
+            previousOrderStatus: 'NEW',
+            newOrderStatus: 'CANCELLED',
+            previousPaymentStatus:
+              'AWAITING_PAYMENT',
+            newPaymentStatus:
+              'AWAITING_PAYMENT',
+          },
+          attributes: null,
+        },
+      },
+    ])
+
+    expect(
+      page.items.map(
+        (event) => event.action,
+      ),
+    ).not.toContain('AUDIT_LOG_VIEWED')
+
+    const viewedResult =
+      await pool.query(
+        `
+          SELECT
+            request_id,
+            action,
+            target_resource_type,
+            target_resource_id
+          FROM audit_events
+          WHERE action =
+            'AUDIT_LOG_VIEWED'
+        `,
+      )
+
+    expect(viewedResult.rows).toEqual([
+      {
+        request_id: requestId,
+        action: 'AUDIT_LOG_VIEWED',
+        target_resource_type:
+          'AUDIT_LOG',
+        target_resource_id:
+          'audit-events',
+      },
+    ])
   })
 })
