@@ -1,19 +1,7 @@
-import type {
-    Request,
-} from 'express'
-import {
-    buildRequestAuditMetadata,
-    resolveRequestAuditRoute,
-} from './auditRequestMetadata.js'
-import {
-    APPLICATION_ERROR_CODE,
-    type ApplicationErrorEventInput,
-} from './applicationErrorEvent.js'
-import type {
-    AuditOperation,
-    RequestAuditActor,
-    RequestAuditTarget,
-} from './requestAuditEvent.js'
+import type { Request, } from 'express'
+import { buildRequestAuditMetadata, resolveRequestAuditRoute, } from './auditRequestMetadata.js'
+import { APPLICATION_ERROR_CODE, type ApplicationErrorEventInput, } from './applicationErrorEvent.js'
+import type { AuditOperation, RequestAuditActor, RequestAuditTarget, } from './requestAuditEvent.js'
 
 const APPLICATION_ERROR_OPERATIONS:
     Readonly<
@@ -25,6 +13,8 @@ const APPLICATION_ERROR_OPERATIONS:
         'AUTHENTICATE_REQUEST',
     'POST /api/auth/logout':
         'AUTH_LOGOUT',
+    'GET /api/audit-events/':
+        'VIEW_AUDIT_LOG',
     'POST /api/orders/':
         'CREATE_ORDER',
     'GET /api/orders/':
@@ -65,6 +55,13 @@ const APPLICATION_ERROR_ROUTE_PATTERNS:
             pattern:
                 /^\/api\/auth\/logout\/?$/,
             route: '/api/auth/logout',
+        },
+        {
+            method: 'GET',
+            pattern:
+                /^\/api\/audit-events\/?$/,
+            route:
+                '/api/audit-events/',
         },
         {
             method: 'POST',
@@ -204,6 +201,18 @@ function resolveApplicationErrorTarget(
         return {
             resourceType: 'ORDER',
             resourceId: orderResourceId,
+        }
+    }
+
+    if (
+        route ===
+        '/api/audit-events/'
+    ) {
+        return {
+            resourceType:
+                'AUDIT_LOG',
+            resourceId:
+                'audit-events',
         }
     }
 

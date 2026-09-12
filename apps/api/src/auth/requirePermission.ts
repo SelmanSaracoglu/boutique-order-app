@@ -35,7 +35,15 @@ const forbiddenResponse = {
 function resolveAuthorizationAuditTarget(
   request: Request,
   auditRoute: string,
+  permission: Permission,
 ): RequestAuditTarget {
+  if (permission === 'AUDIT_READ') {
+    return {
+      resourceType: 'AUDIT_LOG',
+      resourceId: 'audit-events',
+    }
+  }
+
   const orderId = request.params.orderId
 
   if (
@@ -94,6 +102,7 @@ export function requirePermission(
           resolveAuthorizationAuditTarget(
             request,
             auditRoute,
+            permission,
           ),
         request: buildRequestAuditMetadata(
           request,

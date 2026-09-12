@@ -7,6 +7,7 @@ import {
 } from 'vitest'
 import { pool } from '../src/db.js'
 import {
+  recordSecurityAuditEvent,
   tryRecordSecurityAuditEvent,
   type AuditFallbackWriter,
 } from '../src/audit/requestAuditRepository.js'
@@ -213,6 +214,61 @@ describe('Request audit repository', () => {
         context: {},
       },
     ])
+  })
+
+  it('throws when required audit persistence fails', async () => {
+    await pool.query(`
+      ALTER TABLE audit_events
+      ADD CONSTRAINT ${FAILURE_CONSTRAINT}
+      CHECK (action <> 'AUDIT_LOG_VIEWED')
+    `)
+
+    const client = await pool.connect()
+
+    try {
+      await expect(
+        recordSecurityAuditEvent(
+          client,
+          {
+            action: 'AUDIT_LOG_VIEWED',
+            actor: {
+              type: 'USER',
+              user: {
+                id: 1,
+                username: 'admin',
+                role: 'ADMIN',
+              },
+            },
+            target: {
+              resourceType: 'AUDIT_LOG',
+              resourceId: 'audit-events',
+            },
+            request: {
+              requestId:
+                '2c9fb0ad-b6c4-4a95-a241-266357531274',
+              operation:
+                'VIEW_AUDIT_LOG',
+              method: 'GET',
+              route:
+                '/api/audit-events/',
+              status: 200,
+              sourceIp: '127.0.0.1',
+              userAgent:
+                'audit-test-agent',
+            },
+          },
+        ),
+      ).rejects.toThrow()
+    } finally {
+      client.release()
+    }
+
+    const result = await pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM audit_events
+    `)
+
+    expect(result.rows[0].count).toBe(0)
   })
 
   it('uses a safe fallback record when persistence fails', async () => {

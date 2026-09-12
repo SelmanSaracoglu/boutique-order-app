@@ -1,4 +1,5 @@
 import { isIP } from 'node:net'
+import type { PoolClient } from 'pg'
 import { pool } from '../db.js'
 import {
   sanitizeLogText,
@@ -264,9 +265,10 @@ function buildSecurityAuditRecord(
 }
 
 async function insertSecurityAuditRecord(
+  client: Pick<PoolClient, 'query'>,
   record: SecurityAuditRecord,
 ): Promise<void> {
-  const result = await pool.query(
+  const result = await client.query(
     `
       INSERT INTO audit_events (
         schema_version,
@@ -393,6 +395,19 @@ const defaultFallbackWriter: AuditFallbackWriter = (
   writeStructuredLog('stderr', record)
 }
 
+export async function recordSecurityAuditEvent(
+  client: PoolClient,
+  event: SecurityAuditEventInput,
+): Promise<void> {
+  const record =
+    buildSecurityAuditRecord(event)
+
+  await insertSecurityAuditRecord(
+    client,
+    record,
+  )
+}
+
 export async function tryRecordSecurityAuditEvent(
   event: SecurityAuditEventInput,
   writeFallback: AuditFallbackWriter =
@@ -401,7 +416,10 @@ export async function tryRecordSecurityAuditEvent(
   const record = buildSecurityAuditRecord(event)
 
   try {
-    await insertSecurityAuditRecord(record)
+    await insertSecurityAuditRecord(
+      pool,
+      record,
+    )
     return true
   } catch {
     try {
