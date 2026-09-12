@@ -11,6 +11,7 @@ export const AUDIT_OPERATIONS = [
   'CREATE_ORDER',
   'LIST_ORDERS',
   'VIEW_ORDER_DETAIL',
+  'VIEW_AUDIT_LOG',
   'UPDATE_ORDER_STATUS',
   'REPORT_PAYMENT',
   'CONFIRM_PAYMENT',
@@ -31,6 +32,7 @@ export const SECURITY_AUDIT_ACTIONS = [
   'CSRF_VALIDATION_FAILED',
   'REQUEST_VALIDATION_FAILED',
   'ORDER_DETAIL_VIEWED',
+  'AUDIT_LOG_VIEWED',
 ] as const
 
 export type SecurityAuditAction =
@@ -81,6 +83,7 @@ export type RequestAuditTarget = {
     | 'SESSION'
     | 'REQUEST'
     | 'APPLICATION'
+    | 'AUDIT_LOG'
   resourceId: string
 }
 
@@ -161,5 +164,10 @@ export type SecurityAuditEventInput =
         action: 'ORDER_DETAIL_VIEWED'
       }
     )
+  | (
+      SecurityAuditEventBase & {
+        action: 'AUDIT_LOG_VIEWED'
+      }
+    )  
 
     

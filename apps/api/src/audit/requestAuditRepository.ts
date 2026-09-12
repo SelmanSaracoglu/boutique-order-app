@@ -77,6 +77,10 @@ const SECURITY_AUDIT_CLASSIFICATION = {
     outcome: 'SUCCESS',
     severity: 'INFO',
   },
+  AUDIT_LOG_VIEWED: {
+    outcome: 'SUCCESS',
+    severity: 'INFO',
+  },
 } as const satisfies Record<
   SecurityAuditAction,
   SecurityAuditClassification
@@ -161,6 +165,7 @@ function readReasonCode(
     case 'AUTH_LOGIN_SUCCEEDED':
     case 'AUTH_LOGOUT_SUCCEEDED':
     case 'ORDER_DETAIL_VIEWED':
+    case 'AUDIT_LOG_VIEWED':
       return null
 
     case 'AUTH_LOGIN_FAILED':
@@ -203,6 +208,7 @@ function buildContext(
     case 'CSRF_VALIDATION_FAILED':
     case 'REQUEST_VALIDATION_FAILED':
     case 'ORDER_DETAIL_VIEWED':
+    case 'AUDIT_LOG_VIEWED':
       return {}
 
     default:

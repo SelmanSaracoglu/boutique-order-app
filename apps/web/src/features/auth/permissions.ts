@@ -6,6 +6,7 @@ export const PERMISSIONS = [
   'ORDER_STATUS_UPDATE',
   'PAYMENT_REPORT',
   'PAYMENT_CONFIRM',
+  'AUDIT_READ',
 ] as const;
 
 export type Permission =
@@ -19,6 +20,7 @@ const ROLE_PERMISSIONS: Record<
     'ORDER_READ',
     'ORDER_CREATE',
     'ORDER_STATUS_UPDATE',
+    'AUDIT_READ',
   ],
   ORDER_OPERATOR: [
     'ORDER_READ',

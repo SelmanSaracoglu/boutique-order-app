@@ -138,6 +138,83 @@ describe('Request audit repository', () => {
     ])
   })
 
+  it('persists an audit log viewed security event', async () => {
+    const requestId =
+      '9f59bed2-f037-4aa3-bb39-88a9df27bb06'
+
+    const recorded =
+      await tryRecordSecurityAuditEvent({
+        action: 'AUDIT_LOG_VIEWED',
+        actor: {
+          type: 'USER',
+          user: {
+            id: 1,
+            username: 'admin',
+            role: 'ADMIN',
+          },
+        },
+        target: {
+          resourceType: 'AUDIT_LOG',
+          resourceId: 'audit-events',
+        },
+        request: {
+          requestId,
+          operation: 'VIEW_AUDIT_LOG',
+          method: 'GET',
+          route: '/api/audit-events/',
+          status: 200,
+          sourceIp: '127.0.0.1',
+          userAgent: 'audit-test-agent',
+        },
+      })
+
+    expect(recorded).toBe(true)
+
+    const result = await pool.query(
+      `
+        SELECT
+          category,
+          action,
+          outcome,
+          severity,
+          actor_type,
+          actor_username,
+          actor_role,
+          target_resource_type,
+          target_resource_id,
+          request_id,
+          operation,
+          http_method,
+          http_route,
+          http_status,
+          reason_code,
+          context
+        FROM audit_events
+      `,
+    )
+
+    expect(result.rows).toEqual([
+      {
+        category: 'SECURITY',
+        action: 'AUDIT_LOG_VIEWED',
+        outcome: 'SUCCESS',
+        severity: 'INFO',
+        actor_type: 'USER',
+        actor_username: 'admin',
+        actor_role: 'ADMIN',
+        target_resource_type: 'AUDIT_LOG',
+        target_resource_id: 'audit-events',
+        request_id: requestId,
+        operation: 'VIEW_AUDIT_LOG',
+        http_method: 'GET',
+        http_route: '/api/audit-events/',
+        http_status: 200,
+        reason_code: null,
+        context: {},
+      },
+    ])
+  })
+
   it('uses a safe fallback record when persistence fails', async () => {
     await pool.query(`
       ALTER TABLE audit_events

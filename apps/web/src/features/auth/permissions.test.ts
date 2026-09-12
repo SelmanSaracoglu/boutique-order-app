@@ -18,6 +18,7 @@ const EXPECTED_PERMISSIONS: Record<
     'ORDER_READ',
     'ORDER_CREATE',
     'ORDER_STATUS_UPDATE',
+    'AUDIT_READ',
   ],
   ORDER_OPERATOR: [
     'ORDER_READ',
@@ -37,7 +38,7 @@ const EXPECTED_PERMISSIONS: Record<
 };
 
 describe('hasPermission', () => {
-  it('matches the order permission matrix for every role', () => {
+  it('matches the permission matrix for every role', () => {
     for (const role of USER_ROLES) {
       for (const permission of PERMISSIONS) {
         const expected =

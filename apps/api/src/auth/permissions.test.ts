@@ -16,6 +16,7 @@ const rolePermissionCases: Array<{
       'ORDER_READ',
       'ORDER_CREATE',
       'ORDER_STATUS_UPDATE',
+      'AUDIT_READ',
     ],
   },
   {
